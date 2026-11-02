@@ -13,7 +13,7 @@ confidence: high
 This note explains the Business Model Canvas (Osterwalder and Pigneur, Business Model Generation, 2010): its nine building blocks, how it relates to the Value Proposition Canvas, and how Company Brain uses it.
 
 ## What it is
-A one-page model of how an organization creates, delivers, and captures value, in nine blocks (Business Model Generation, Wiley, 2010; https://www.strategyzer.com/library/the-business-model-canvas, as of 2026-10):
+A one-page model of how an organization creates, delivers, and captures value, in nine blocks (Business Model Generation, Wiley, 2010; https://www.strategyzer.com/library/the-business-model-canvas):
 
 ```
 ┌──────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
@@ -43,4 +43,4 @@ The [[Value Proposition Canvas]] zooms into two blocks: one customer segment and
 
 ## References
 - Alexander Osterwalder and Yves Pigneur, Business Model Generation, Wiley, 2010 (stated).
-- Strategyzer, The Business Model Canvas, https://www.strategyzer.com/library/the-business-model-canvas (as of 2026-10).
+- Strategyzer, The Business Model Canvas, https://www.strategyzer.com/library/the-business-model-canvas.

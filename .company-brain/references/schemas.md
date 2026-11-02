@@ -7,21 +7,25 @@ The `brain` CLI parses these fields (`brain refresh`, `brain check`), so spellin
 ## Universal fields (every note)
 
 ```yaml
-date: 2026-10-22          # creation date, YYYY-MM-DD
-updated: 2026-10-22       # last meaningful edit (optional)
+date: YYYY-MM-DD          # creation date, YYYY-MM-DD
+updated: YYYY-MM-DD       # last meaningful edit (optional)
 type: <type>              # from the tables below
 tags: [<type>, ...]       # always include the type
 ai-first: true
 layer: company            # company | team | personal  (must match the folder)
 team: "[[Platform]]"      # required when layer is team
 owner: "[[Jane Doe]]"     # accountable person, where meaningful
+last-checked: YYYY-MM-DD  # optional: the owner confirmed the facts; set only by /company-brain:checkin
+checkin: never            # optional: never | priority. Keeps a note out of check-ins, or asks about it first
 ```
+
+`last-checked` moves only when the owner looks at the facts. `updated` is the last meaningful edit, so a link-only or formatting change must not touch it.
 
 Exempt from the universal fields: kanban boards (`kanban-plugin: board` frontmatter only), `Home.md`, `CLAUDE.md`, `README.md`, `index.md`, `log.md`, everything in `Templates/`, `Sources/`, `Exports/`, `.company-brain/`.
 
 ## Periods and names
 
-- Year: `2026`. Quarter: `2026-Q4` (fiscal quarters follow `company.fiscal_year_start` in `brain.yaml`; month 1 means calendar quarters). ISO week: `2026-W43`.
+- Year: `YYYY`. Quarter: `YYYY-Qn` (fiscal quarters follow `company.fiscal_year_start` in `brain.yaml`; month 1 means calendar quarters). ISO week: `YYYY-Www`.
 - `brain period` prints the current year, quarter, week, and the file names a daily, weekly, or team update should use today. Use it instead of computing dates by hand.
 
 ## Folder and filename by type
@@ -82,9 +86,9 @@ location: "TBD"
 start_date: TBD
 timeline:                  # bi-temporal, append-only (see ai-first-rules.md)
   - fact: "Product Manager, Platform"
-    from: 2026-01-10
+    from: YYYY-MM-DD
     until: present
-    learned: 2026-10-22
+    learned: YYYY-MM-DD
 ```
 A shared profile holds only facts the person would be comfortable seeing on the company intranet. Impressions, feedback, and 1:1 content belong in `Personal/1-1s/`.
 
@@ -103,14 +107,14 @@ rituals: ["weekly sync Tue", "retro biweekly"]
 type: mission              # or vision, values
 status: draft              # draft | approved
 approved_by: "[[TBD]]"
-review_by: 2027-01-31
+review_by: YYYY-MM-DD
 ```
 
 ### `strategy`
 ```yaml
 type: strategy
 framework: kernel          # kernel | playing-to-win | both
-horizon: "2026-2028"
+horizon: "YYYY-YYYY"
 status: draft              # draft | approved | superseded
 supersedes: "[[...]]"      # optional
 ```
@@ -121,8 +125,8 @@ type: vpc
 segment: "Mid-market PS teams"
 status: hypothesis         # hypothesis | partially-validated | validated | retired
 fit: problem-solution      # none | problem-solution | product-market | business-model
-evidence: ["[[2026-10-20 - Customer interview Acme]]"]
-strategy: "[[Strategy - 2026-2028]]"
+evidence: ["[[YYYY-MM-DD - Customer interview Acme]]"]
+strategy: "[[Strategy - YYYY-YYYY]]"
 ```
 Body sections (fixed names, parsed by `brain check`): `## Customer jobs`, `## Pains`, `## Gains`, `## Products and services`, `## Pain relievers`, `## Gain creators`, `## Fit`, `## Assumptions to test`.
 
@@ -137,11 +141,11 @@ Body sections: the nine blocks (`## Customer segments`, `## Value propositions`,
 ```yaml
 type: objective
 level: company             # company | team | personal
-period: 2026-Q4            # 2026 for annual objectives
+period: YYYY-Qn            # YYYY for annual objectives
 owner: "[[Jane Doe]]"
-parent: "[[2026 - Company - O1 - Become the default AI workspace#^kr2]]"   # what this ladders up to
+parent: "[[YYYY - Company - O1 - Become the default AI workspace#^kr2]]"   # what this ladders up to
 status: on-track           # on-track | at-risk | off-track | done | dropped
-last_checkin: 2026-10-22
+last_checkin: YYYY-MM-DD
 ```
 Key results are list items in the `## Key results` section, each with inline Dataview fields and a block id so other notes can link to one KR:
 
@@ -151,14 +155,14 @@ Key results are list items in the `## Key results` section, each with inline Dat
 ```
 - Progress is `progress::` when given (0.0 to 1.0), else computed from `baseline`, `target`, `current`, clamped to 0..1. Objective score is the mean of its KR progress.
 - Link to a KR as `[[<objective note>#^kr1]]`. `parent:` may point at an objective or at one KR; prefer the KR.
-- Check-ins append a row to `## Check-ins`: `| 2026-10-22 | KR1 | 1450 | medium | note |`.
+- Check-ins append a row to `## Check-ins`: `| YYYY-MM-DD | KR1 | 1450 | medium | note |`.
 - Scoring convention: 0.7 is a good outcome for an ambitious KR; 1.0 every time means the target was not ambitious.
 
 ### `plan`
 ```yaml
 type: plan
 horizon: quarterly         # annual | quarterly
-period: 2026-Q4
+period: YYYY-Qn
 status: draft              # draft | committed | closed
 ```
 
@@ -166,7 +170,7 @@ status: draft              # draft | committed | closed
 ```yaml
 # outcome: the measurable result the team is driving (usually one KR)
 type: outcome
-kr: "[[2026-Q4 - Platform - O1 - Faster onboarding#^kr1]]"
+kr: "[[YYYY-Qn - Platform - O1 - Faster onboarding#^kr1]]"
 metric: "Time to first board, median minutes"
 status: active             # active | achieved | dropped
 
@@ -174,7 +178,7 @@ status: active             # active | achieved | dropped
 type: opportunity
 parent: "[[OUT - Faster time to value]]"     # an outcome or a parent opportunity
 segment: "[[VPC - Mid-market PS teams]]"
-evidence: ["[[2026-10-20 - Customer interview Acme]]"]
+evidence: ["[[YYYY-MM-DD - Customer interview Acme]]"]
 opportunity_size: 4        # 1-5: how many customers, how often, how painful
 status: open               # open | targeted | parked | solved
 
@@ -203,13 +207,13 @@ result: pending            # pending | passed | failed | inconclusive
 ```yaml
 type: project
 status: active             # planning | active | on-hold | completed | archived
-okrs: ["[[2026-Q4 - Platform - O1 - Faster onboarding#^kr1]]"]
+okrs: ["[[YYYY-Qn - Platform - O1 - Faster onboarding#^kr1]]"]
 solution: "[[SOL - Guided setup checklist]]"   # optional
 impact: 4                  # optional, for prioritization
 effort: 3
 roadmap: now               # now | next | later | none
-start: 2026-10-01
-due: 2026-12-15
+start: YYYY-MM-DD
+due: YYYY-MM-DD
 ```
 
 ### `meeting`
@@ -220,7 +224,7 @@ attendees: ["[[Jane Doe]]", "[[Sam Lee]]"]
 source: calendar           # calendar | granola | zoom | gemini | manual
 project: "[[...]]"         # optional
 ```
-Body: `## Agenda`, `## Notes`, `## Decisions`, `## Action items` (`- [ ] [[Owner]] action @{2026-10-29}`).
+Body: `## Agenda`, `## Notes`, `## Decisions`, `## Action items` (`- [ ] [[Owner]] action @{YYYY-MM-DD}`).
 
 ### `one-on-one` (personal only)
 ```yaml
@@ -242,30 +246,48 @@ supersedes: "[[...]]"      # optional
 ### `daily`, `weekly`, `team-update`, `team-weekly`
 ```yaml
 type: daily                # Personal/Daily
-week: 2026-W43
+week: YYYY-Www
 
 type: weekly               # Personal/Weekly
-week: 2026-W43
-period: 2026-Q4
+week: YYYY-Www
+period: YYYY-Qn
 krs: ["[[...#^kr1]]"]      # KRs this week's work moved
 
 type: team-update          # Teams/<Team>/Weekly, one per person per week
-week: 2026-W43
+week: YYYY-Www
 author: "[[Jane Doe]]"
 krs: ["[[...#^kr1]]"]
 
 type: team-weekly          # Teams/<Team>/Weekly, one per team per week
-week: 2026-W43
+week: YYYY-Www
 contributors: ["[[Jane Doe]]", "[[Sam Lee]]"]
 ```
 
 ### `knowledge` (ingested source summary or reference note)
 ```yaml
 type: knowledge
-source_path: "Sources/GTM Strategy/2026 plan.pdf"   # or source_url
+source_path: "Sources/GTM Strategy/YYYY plan.pdf"   # or source_url
 source_type: pdf           # pdf | doc | gdoc | sheet | slides | web | transcript | md
-ingested: 2026-10-22
+ingested: YYYY-MM-DD
 confidence: stated
+```
+
+### `source` (a captured file from folder ingestion)
+A knowledge note that stands for one source file, written by `/company-brain:ingest` in a folder batch. The helper `scripts/ingest_batch.py` recognises it by `type: source`, found under the layer's Knowledge folder.
+```yaml
+type: source
+source_path: "/absolute/path/from/the/plan"   # the source's identity for completion receipts; machine-specific, so keep in Personal
+source_file_hash: "<64 hex>"                   # SHA-256 of the file's bytes, from the plan
+source_type: md            # md | pdf | audio | image
+ingested: YYYY-MM-DD
+confidence: stated
+```
+Everything else follows `knowledge`. A completion receipt (a hidden comment in `log.md`) says the work for that source version is done; it does not judge extraction quality.
+
+### `crew-log`, `crew-lessons` (written by `scripts/crew.py`)
+```yaml
+type: crew-log             # one note per day in Personal/Crew/: one line per job (time | agent | area | what | where)
+type: crew-lessons         # lessons agents leave each other; open until a human runs keep or drop
 ```
 
 ### `hub`, `framework`, `system`, generated views

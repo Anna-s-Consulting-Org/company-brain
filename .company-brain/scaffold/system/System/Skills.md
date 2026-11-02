@@ -33,9 +33,12 @@ This note is the catalog of Company Brain skills: what each does and where it wr
 | `/company-brain:board` | kanban boards at any layer | boards |
 | `/company-brain:promote` | share a personal note with the team or company | the target layer |
 | `/company-brain:connect` | mount Desktop and Google Drive folders as sources | `Sources/`, `brain.yaml` |
-| `/company-brain:ingest` | read a document into the brain | `<layer>/Knowledge/` and the notes it informs |
+| `/company-brain:ingest` | read a document, or a whole folder in resumable batches, into the brain (Word and OpenDocument too) | `<layer>/Knowledge/` and the notes it informs |
 | `/company-brain:health` | check and repair the brain | fixes across the brain |
 | `/company-brain:export` | Claude Project pack for claude.ai | `Exports/Claude Project/` |
+| `/company-brain:checkin` | ask me whether the old notes I own still hold, and save the news | the notes I own, `.checkin.json` (local) |
+| `/company-brain:reconcile` | find contradictions between notes, prove each with verbatim quotes, resolve or flag | the notes concerned, decision records for open conflicts |
+| `/company-brain:crew` | one logbook shared by Claude Code, Codex, Cursor and Grok Bot | `Personal/Crew/` |
 
 ## How to run them
 - **Claude Code / desktop app / Cowork**: type `/company-brain:weekly` (or any name above), or ask in plain words ("prepare my 1:1 with Sam", "prioritize the platform solutions").

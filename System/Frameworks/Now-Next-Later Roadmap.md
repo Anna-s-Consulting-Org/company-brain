@@ -13,7 +13,7 @@ confidence: high
 This note explains the Now-Next-Later roadmap (Janna Bastow, ProdPad): an outcome-based roadmap with three time horizons instead of dates, and how Company Brain keeps it in sync with discovery, prioritization, OKRs, and projects.
 
 ## What it is
-A roadmap format popularized by Janna Bastow at ProdPad (https://www.prodpad.com/blog/invented-now-next-later-roadmap/, as of 2026-10) that replaces a date-based timeline with three horizons:
+A roadmap format popularized by Janna Bastow at ProdPad (https://www.prodpad.com/blog/invented-now-next-later-roadmap/) that replaces a date-based timeline with three horizons:
 - **Now**: what the team is working on, with high certainty and detail.
 - **Next**: what comes after, shaped and broadly understood, still open to change.
 - **Later**: problems and opportunities worth solving, deliberately loose.
@@ -33,4 +33,4 @@ Each item states the problem or outcome, not just the feature, so the roadmap co
 - Skill: `/company-brain:roadmap`.
 
 ## References
-- Janna Bastow, ProdPad, Why I invented the Now-Next-Later roadmap, https://www.prodpad.com/blog/invented-now-next-later-roadmap/ (as of 2026-10).
+- Janna Bastow, ProdPad, Why I invented the Now-Next-Later roadmap, https://www.prodpad.com/blog/invented-now-next-later-roadmap/.

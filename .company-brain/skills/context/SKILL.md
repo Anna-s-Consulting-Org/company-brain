@@ -24,7 +24,7 @@ Read-only. Loads the shared company layer into the conversation so answers are g
 ## Steps
 1. Pick the level from the question. Strategic drafting usually needs 2; "is this aligned?" needs 1; a team question needs 3 on that team.
 2. Run the command. Read `index.md` if you need to find a specific note.
-3. Answer with the sources named (`[[Mission]]`, `[[2026-Q4 - Company - O1 - ...]]`). Flag anything still `TBD` or `status: draft` as not yet agreed.
+3. Answer with the sources named (`[[Mission]]`, `[[YYYY-Qn - Company - O1 - ...]]`). Flag anything still `TBD` or `status: draft` as not yet agreed.
 4. Do not write notes in this skill. If the user wants to change something, hand off to `strategy`, `okr`, `vpc`, or `roadmap`.
 
 Personal notes other than `Me.md` are never part of shared context; include the user's own Personal notes only when they ask about their own work.

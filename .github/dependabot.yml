@@ -1,0 +1,13 @@
+# Keep GitHub Actions versions current so the workflow stays patched.
+# One grouped pull request per month.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns: ["*"]

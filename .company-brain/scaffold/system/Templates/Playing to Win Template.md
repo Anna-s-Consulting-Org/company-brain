@@ -2,7 +2,7 @@
 const f = tp.file.folder(true);
 const layer = f.startsWith("Company") ? "company" : f.startsWith("Teams") ? "team" : "personal";
 const team = f.startsWith("Teams/") ? f.split("/")[1] : "";
-const horizon = await tp.system.prompt("horizon, for example 2026-2028");
+const horizon = await tp.system.prompt("horizon, for example YYYY-YYYY");
 -%>
 ---
 date: <% tp.date.now("YYYY-MM-DD") %>

@@ -2,7 +2,7 @@
 const f = tp.file.folder(true);
 const layer = f.startsWith("Company") ? "company" : f.startsWith("Teams") ? "team" : "personal";
 const team = f.startsWith("Teams/") ? f.split("/")[1] : "";
-const period = await tp.system.prompt("period: 2026-Q4");
+const period = await tp.system.prompt("period: YYYY-Qn");
 -%>
 ---
 date: <% tp.date.now("YYYY-MM-DD") %>

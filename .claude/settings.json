@@ -4,5 +4,15 @@
       "Bash(./brain:*)",
       "Bash(python3 .company-brain/scripts/brain.py:*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|create_file",
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.company-brain/hooks/vendored_guard.py\"", "timeout": 10 }
+        ]
+      }
+    ]
   }
 }

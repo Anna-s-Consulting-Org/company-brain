@@ -31,7 +31,7 @@ A 2x2 that places each candidate piece of work by expected impact and required e
 - A score of 3 counts as **high** on both axes (conservative: we assume work is bigger than it looks).
 
 ## RICE (optional, for finer ranking)
-RICE was published by Intercom (Sean McBride, https://www.intercom.com/blog/rice-simple-prioritization-for-product-managers/, as of 2026-10): score = Reach x Impact x Confidence / Effort.
+RICE was published by Intercom (Sean McBride, https://www.intercom.com/blog/rice-simple-prioritization-for-product-managers/): score = Reach x Impact x Confidence / Effort.
 - Reach: people or events affected per period (for example per quarter).
 - Impact: here the same 1-5 scale.
 - Confidence: high 100 percent, medium 80 percent, low 50 percent.
@@ -54,4 +54,4 @@ RICE was published by Intercom (Sean McBride, https://www.intercom.com/blog/rice
 - Skill: `/company-brain:prioritize`, then `/company-brain:roadmap` to act on it.
 
 ## References
-- Intercom, RICE: Simple prioritization for product managers, https://www.intercom.com/blog/rice-simple-prioritization-for-product-managers/ (as of 2026-10).
+- Intercom, RICE: Simple prioritization for product managers, https://www.intercom.com/blog/rice-simple-prioritization-for-product-managers/.

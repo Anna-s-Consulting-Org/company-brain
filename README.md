@@ -28,7 +28,7 @@ It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian
 
 | Surface | Read | Write | Notes |
 |---|---|---|---|
-| Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 22 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:vpc`, `:prioritize`, `:roadmap`, `:meeting`, and more |
+| Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 25 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:checkin`, `:reconcile`, `:prioritize`, `:roadmap`, `:meeting`, and more |
 | Claude Desktop chat | yes | yes | through the brain MCP server (see `System/Setup.md`) |
 | claude.ai Project | yes | no | read-only pack made by `/company-brain:export` (company and team layers only) |
 
@@ -62,7 +62,9 @@ The top diagram shows how inputs, the Claude plugin and the three layers connect
 3. **Sources**: `/company-brain:connect` mounts Desktop or Google Drive folders under `Sources/` (read-only symlinks).
 4. **Rhythm**: `/company-brain:daily` each morning, `/company-brain:weekly` on Fridays, `/company-brain:plan quarterly` each quarter.
 
-The `./brain` CLI works without Claude: `./brain period`, `./brain new objective --title ...`, `./brain promote <note> --to team`, `./brain refresh`, `./brain check`, `./brain export-pack`. Requirements: `python3` (the stock macOS one works), plus `uv` for the MCP server.
+The `./brain` CLI works without Claude: `./brain period`, `./brain new objective --title ...`, `./brain promote <note> --to team`, `./brain refresh`, `./brain check`, `./brain freshness`, `./brain search`, `./brain export-pack`. Requirements: `python3` (the stock macOS one works), plus `uv` for the MCP server.
+
+Tests: `python3 -m pytest .company-brain/tests` (needs `pytest`). CI runs them on every push and pull request, together with `./brain freshness`, `./brain check --severity error`, `./brain upstream-check --verify` (vendored files unedited) and `./brain scaffold-sync --check`.
 
 New brains start from `.company-brain/scaffold/`. After editing `System/`, `Templates/`, `CLAUDE.md`, or `Home.md` here, run `./brain scaffold-sync` so new brains get the change (`./brain scaffold-sync --check` only reports drift). On macOS, `./brain scaffold-sync --watch` does this automatically in the background (launchd agent; `--unwatch` removes it).
 

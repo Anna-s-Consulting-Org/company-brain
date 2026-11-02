@@ -1,13 +1,189 @@
 {
   "repo": "https://github.com/eugeniughelbur/obsidian-second-brain.git",
   "branch": "main",
-  "commit": "a2008bd30a0149945c6c242db3fd32a14fe348af",
+  "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
   "files": [
-    {"upstream": "references/ai-first-rules.md", "local": ".company-brain/references/ai-first-rules.md", "mode": "copy"},
-    {"upstream": "references/freshness-policy.md", "local": ".company-brain/references/freshness-policy.md", "mode": "copy"},
-    {"upstream": "references/write-rules.md", "local": ".company-brain/references/propagation.md", "mode": "adapt"},
-    {"upstream": "hooks/validate-ai-first.sh", "local": ".company-brain/hooks/validate-ai-first.sh", "mode": "adapt"},
-    {"upstream": "integrations/obsidian-mcp-server", "local": ".company-brain/mcp/vault", "mode": "adapt"},
-    {"upstream": "scripts/osb_env.py", "local": ".company-brain/scripts/osb_env.py", "mode": "adapt"}
+    {
+      "upstream": "references/ai-first-rules.md",
+      "local": ".company-brain/references/ai-first-rules.md",
+      "mode": "copy",
+      "sha256": "7204511aaa6d553866452284a1889b43b38deb189f8184362a47472b08e4200b"
+    },
+    {
+      "upstream": "references/freshness-policy.md",
+      "local": ".company-brain/references/freshness-policy.md",
+      "mode": "copy",
+      "sha256": "9b62e53fe0cfade6a343507dab1299e4d5812a60e7ba4343cbd5d96f328df608"
+    },
+    {
+      "upstream": "references/write-rules.md",
+      "local": ".company-brain/references/propagation.md",
+      "mode": "adapt"
+    },
+    {
+      "upstream": "hooks/validate-ai-first.sh",
+      "local": ".company-brain/hooks/validate-ai-first.sh",
+      "mode": "adapt"
+    },
+    {
+      "upstream": "integrations/obsidian-mcp-server",
+      "local": ".company-brain/mcp/vault",
+      "mode": "adapt"
+    },
+    {
+      "upstream": "scripts/osb_env.py",
+      "local": ".company-brain/scripts/osb_env.py",
+      "mode": "adapt"
+    },
+    {
+      "upstream": "scripts/freshness_lint.py",
+      "local": ".company-brain/scripts/freshness_lint.py",
+      "mode": "copy",
+      "sha256": "bd2503670187ff4905a9395089d3220fcecc49a87db9d724f9724f22b5ccb9f5"
+    },
+    {
+      "upstream": "scripts/vault_scan.py",
+      "local": ".company-brain/scripts/vault_scan.py",
+      "mode": "copy",
+      "sha256": "791d7cfa3521e63d62f2790c8407bde83764ecce8edf5d68845a06a0e56e4985"
+    },
+    {
+      "upstream": "tests/test_freshness_lint.py",
+      "local": ".company-brain/tests/test_freshness_lint.py",
+      "mode": "copy",
+      "sha256": "0da47c2ba36838ad0acd25e0e9513b624db94fe692770af70582d672564d0f6d"
+    },
+    {
+      "upstream": "scripts/note_io.py",
+      "local": ".company-brain/scripts/note_io.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "5c812755ee009488009a583b80c46dd9a6d21d966e7997b64811093495550a72"
+    },
+    {
+      "upstream": "scripts/sweep_non_ascii.py",
+      "local": ".company-brain/scripts/sweep_non_ascii.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "2b5c178c3dbc33b8130ea0c6349417616b82de837a146138bcc22162afa44f97"
+    },
+    {
+      "upstream": "scripts/vault_health.py",
+      "local": ".company-brain/scripts/vault_health.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "84da3799bbf31676006cbeb9bd73f7cc9df3e48e30e428e6c7b4c27d7b7964f8"
+    },
+    {
+      "upstream": "scripts/checkin.py",
+      "local": ".company-brain/scripts/checkin.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "9b074339baa134a6c89830391c465a3eea32302f5595dce3ab84ddb5916967be"
+    },
+    {
+      "upstream": "scripts/check_notes.py",
+      "local": ".company-brain/scripts/check_notes.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "a5035feede290a6c832787708ae437569e2342a6a630bd037eac17ef09f4699d"
+    },
+    {
+      "upstream": "scripts/verify_quotes.py",
+      "local": ".company-brain/scripts/verify_quotes.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "4cddd6c0f4b9cb4d9affedef437cd0e5d0292f0467237479f52d8c0070b4829b"
+    },
+    {
+      "upstream": "scripts/document_to_pdf.py",
+      "local": ".company-brain/scripts/document_to_pdf.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "d569579bb2a9ecb152e75bc596e0e3fb2065340cd8e67289c9f49f44f45df0c4"
+    },
+    {
+      "upstream": "scripts/crew.py",
+      "local": ".company-brain/scripts/crew.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "c1562aef12d315bc46c9833c31bfa0ce37c656aacf6c416ca99fffa9a0995539"
+    },
+    {
+      "upstream": "scripts/ingest_batch.py",
+      "local": ".company-brain/scripts/ingest_batch.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "4fca0c9bcbed0745bf11752cb58da0cd9360421d65251bbdb049f3c9573fe08e"
+    },
+    {
+      "upstream": "tests/test_checkin.py",
+      "local": ".company-brain/tests/test_checkin.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "ef39e5be261d7eb7001e755304f2dc597a730b9ed65150082e36a368964e4e01"
+    },
+    {
+      "upstream": "tests/test_verify_quotes.py",
+      "local": ".company-brain/tests/test_verify_quotes.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "fa704a47dd6dd8afcf4dab0a867a4086202bcce45dd7903546a471f9db869013"
+    },
+    {
+      "upstream": "tests/test_crew.py",
+      "local": ".company-brain/tests/test_crew.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "958f939f434ac937a0c915bf0f52d0fbd2aef87b895576bc9279e5886a365468"
+    },
+    {
+      "upstream": "tests/test_document_to_pdf.py",
+      "local": ".company-brain/tests/test_document_to_pdf.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "01a2e51554eeabede5e5d3b53c062a37d3912eb162f1b431721339ab0831b9f0"
+    },
+    {
+      "upstream": "tests/test_ingest_batch.py",
+      "local": ".company-brain/tests/test_ingest_batch.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "8acc1efa30416dad659de7234d162ee4a35e52dcbb1bba4429a698ee3d74d0d1"
+    },
+    {
+      "upstream": "tests/test_vault_health_precision.py",
+      "local": ".company-brain/tests/test_vault_health_precision.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "918d2fd1fc97f258ebd10d55abf90d9ecd27879fc454d9bf5d5de6bed0bd8cfd"
+    },
+    {
+      "upstream": "tests/test_vault_health_unicode.py",
+      "local": ".company-brain/tests/test_vault_health_unicode.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "eae0a857656cd76b49e557dc1f5662c1a55cd824e500878701e9fdc2d1f5f88f"
+    },
+    {
+      "upstream": "tests/test_user_excludes.py",
+      "local": ".company-brain/tests/test_user_excludes.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "9c2539906db2cac7d4dab5d926aee25729e76df0b2545731c2ac6d702ca6d439"
+    },
+    {
+      "upstream": "tests/_bash.py",
+      "local": ".company-brain/tests/_bash.py",
+      "mode": "copy",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143",
+      "sha256": "56a032a5f8875ed109ee38ef18d022bdb772c0f30fee2394e8af0ef97d20d1f7"
+    },
+    {
+      "upstream": "scripts/vault_search.py",
+      "local": ".company-brain/scripts/brain.py",
+      "mode": "adapt",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143"
+    }
   ]
 }

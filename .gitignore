@@ -6,6 +6,9 @@
 /log.md
 /System/Build Plan.md
 
+# /company-brain:checkin keeps its open questions and answers here (personal)
+/.checkin.json
+
 # Obsidian per-device state and third-party plugin code (each person installs plugins;
 # plugin settings are shared)
 .obsidian/workspace*.json

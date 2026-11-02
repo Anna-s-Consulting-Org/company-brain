@@ -563,7 +563,7 @@ SCAFFOLD_SYSTEM_EXCLUDE = {"System/Build Plan.md"}
 
 def scaffold_system_sources(root: Path) -> dict:
     """rel path -> vault file, for everything new brains get from scaffold/system."""
-    files = [root / n for n in ("CLAUDE.md", "Home.md", ".gitignore")]
+    files = [root / n for n in ("CLAUDE.md", "Home.md", ".gitignore", ".freshness.json", ".vault-config.json")]
     files += sorted((root / "System").rglob("*.md")) + sorted((root / "Templates").rglob("*.md"))
     obsidian = root / ".obsidian"
     files += sorted(p for p in obsidian.glob("*.json") if not p.name.startswith("workspace"))
@@ -685,6 +685,57 @@ def watch_remove(root: Path) -> dict:
 UPSTREAM_CONF = ENGINE / "upstream.json"
 
 
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def vendored_integrity(root: Path) -> list:
+    """Problems with files marked mode=copy in upstream.json.
+
+    A copy file is vendored byte for byte, so it must match the sha256 recorded when it was copied.
+    Adapted files are ours to edit and are not checked here.
+    """
+    conf = json.loads(UPSTREAM_CONF.read_text(encoding="utf-8"))
+    problems = []
+    for f in conf["files"]:
+        if f["mode"] != "copy":
+            continue
+        local = root / f["local"]
+        if not local.is_file():
+            problems.append(f"{f['local']}: missing")
+        elif not f.get("sha256"):
+            problems.append(f"{f['local']}: no sha256 recorded in upstream.json")
+        elif sha256_file(local) != f["sha256"]:
+            problems.append(f"{f['local']}: differs from the upstream copy recorded in upstream.json")
+    return problems
+
+
+def _freshness_module():
+    scripts = str(Path(__file__).resolve().parent)
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import freshness_lint  # vendored from obsidian-second-brain, see upstream.json
+    return freshness_lint
+
+
+def freshness_report(root: Path, today=None) -> dict:
+    """Run the vendored freshness lint (references/freshness-policy.md) over the brain."""
+    return _freshness_module().lint_folder(root, today)
+
+
+def freshness_findings_for(root: Path, path: Path, today=None) -> list:
+    """Findings for one note, skipping what lint_folder skips (machine folders, exempt-dirs in .freshness.json)."""
+    fl = _freshness_module()
+    parts = path.resolve().relative_to(root.resolve()).parts
+    cfg = fl.load_config(root)
+    exempt = {d.strip("/") for d in cfg.get("exempt-dirs", [])}
+    if path.suffix != ".md" or any(p.lower() in fl.SKIP_DIRS for p in parts):
+        return []
+    if any("/".join(parts[:i + 1]) in exempt for i in range(len(parts) - 1)):
+        return []
+    return fl.lint_file(path, "/".join(parts), cfg, today or dt.date.today())
+
+
 def _git(root: Path, *args: str, check: bool = True, binary: bool = False):
     r = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=not binary)
     if check and r.returncode:
@@ -707,22 +758,32 @@ def upstream_check(root: Path, diff: bool = False, copy: bool = False, mark: boo
     base, head = conf["commit"], _git(root, "rev-parse", ref).strip()
     changed = []
     for f in conf["files"]:
-        rows = [l.split("\t") for l in _git(root, "diff", "--numstat", base, ref, "--", f["upstream"]).splitlines() if l]
+        # a file vendored later than the rest carries its own "commit" until the next --mark
+        rows = [l.split("\t") for l in _git(root, "diff", "--numstat", f.get("commit", base), ref, "--", f["upstream"]).splitlines() if l]
         if rows:
             changed.append({**f, "added": sum(int(a) for a, _, _ in rows if a != "-"),
                             "removed": sum(int(d) for _, d, _ in rows if d != "-"), "paths": [p for _, _, p in rows]})
     res = {"repo": conf["repo"], "base": base, "head": head,
            "commits": int(_git(root, "rev-list", "--count", f"{base}..{ref}").strip()), "changed": changed}
     if diff and changed:
-        res["diff"] = _git(root, "diff", base, ref, "--", *[f["upstream"] for f in changed])
+        res["diff"] = "".join(_git(root, "diff", f.get("commit", base), ref, "--", f["upstream"]) for f in changed)
     if copy:
         res["copied"] = []
         for f in changed:
             if f["mode"] == "copy":
-                (root / f["local"]).write_bytes(_git(root, "show", f"{ref}:{f['upstream']}", binary=True))
+                target = root / f["local"]
+                target.write_bytes(_git(root, "show", f"{ref}:{f['upstream']}", binary=True))
+                for entry in conf["files"]:
+                    if entry["local"] == f["local"]:
+                        entry["sha256"] = sha256_file(target)  # keep the integrity guard in step with the copy
+                        entry["commit"] = head  # this file is now current; the next --mark clears it
                 res["copied"].append(f["local"])
+        if res["copied"]:
+            UPSTREAM_CONF.write_text(json.dumps(conf, indent=2) + "\n", encoding="utf-8")
     if mark:
         conf["commit"] = head
+        for entry in conf["files"]:
+            entry.pop("commit", None)
         UPSTREAM_CONF.write_text(json.dumps(conf, indent=2) + "\n", encoding="utf-8")
         res["marked"] = head
     return res
@@ -1160,7 +1221,7 @@ def generated_header(ntype: str, title: str, layer: str, purpose: str, team: str
     team_line = f'team: "[[{team}]]"\n' if team else ""
     return (f"---\ndate: {TODAY.isoformat()}\ntype: {ntype}\ntags: [{ntype}, generated]\n"
             f"ai-first: true\nlayer: {layer}\n{team_line}generated_by: brain refresh\n---\n\n"
-            f"# {title}\n\n## For future agent\n{purpose} Content between the brain:auto markers is "
+            f"# {title}\n\n## For future agent\n{purpose} Content between the `brain:auto` markers is "
             f"regenerated by `brain refresh`; edit the source notes, not this view.\n")
 
 
@@ -1601,6 +1662,9 @@ def check(root: Path, notes=None) -> list:
                     add("warn", n, f"no check-in for {(TODAY - last).days} days")
             except ValueError:
                 add("warn", n, "no `last_checkin:` date on a current objective")
+    for f in freshness_report(root)["findings"]:
+        issues.append({"severity": "warn" if f["severity"] == "error" else "info", "path": f["file"],
+                       "message": f"{f['rule']} line {f['line']}: {f['text']}"})
     return issues
 
 
@@ -1926,6 +1990,15 @@ def cmd_upstream_check(args):
     if ENGINE.resolve() != (root / ".company-brain").resolve():
         raise SystemExit(f"error: upstream-check tracks the engine shipped inside the brain ({root / '.company-brain'}), "
                          f"but this engine is {ENGINE}; run ./brain upstream-check from that brain")
+    if args.verify:
+        problems = vendored_integrity(root)
+        emit(args, {"problems": problems},
+             "Vendored files match upstream.json" if not problems else
+             "Vendored files were edited:\n  " + "\n  ".join(problems)
+             + "\nUndo the edit, or take the upstream version with ./brain upstream-check --copy.")
+        if problems:
+            sys.exit(1)
+        return
     res = upstream_check(root, diff=args.diff, copy=args.copy, mark=args.mark)
     base, head = res["base"][:7], res["head"][:7]
     text = f"Upstream {res['repo']} is at {head}, {res['commits']} commits after the recorded {base}"
@@ -2104,6 +2177,34 @@ def cmd_check(args):
     sys.exit(1 if any(i["severity"] == "error" for i in issues) else 0)
 
 
+def cmd_freshness(args):
+    root = need_root(args)
+    report = freshness_report(root)
+    lines = [f"[{f['rule']}] {f['severity']}: {f['file']}:{f['line']}  {f['text']}" for f in report["findings"]]
+    lines.append(f"\n{report['errors']} error(s), {report['warnings']} warning(s)")
+    if not report["findings"]:
+        lines.append("Freshness-clean: every fact is timeless, dated, or a pointer.")
+    else:
+        lines.append("Fix: add `(as of YYYY-MM-DD)`, turn it into a pointer to where the truth lives, or move it into a dated note.")
+    emit(args, report, "\n".join(lines))
+    if report["errors"] or (args.strict and report["warnings"]):
+        sys.exit(1)
+
+
+def cmd_search(args):
+    """Search the brain from a shell, a cron job or CI, with no agent (port of upstream scripts/vault_search.py)."""
+    root = need_root(args)
+    os.environ["COMPANY_BRAIN_PATH"] = str(root)
+    sys.path.insert(0, str(ENGINE / "mcp" / "vault"))
+    import vault_ops  # the same search the brain MCP server serves
+    try:
+        results = vault_ops.search(args.query, limit=args.limit, semantic=False if args.lexical else None)
+    except (RuntimeError, OSError) as exc:
+        raise SystemExit(f"error: search failed: {exc}")
+    # ASCII escapes, not raw UTF-8: a console in a legacy code page cannot print a CJK or emoji title.
+    print(json.dumps(results))
+
+
 def cmd_connect(args):
     root = need_root(args)
     src = root / "Sources"
@@ -2221,7 +2322,19 @@ def main(argv=None):
     p.add_argument("--diff", action="store_true", help="print the upstream changes to those files")
     p.add_argument("--copy", action="store_true", help="overwrite the unchanged-copy files with the upstream version")
     p.add_argument("--mark", action="store_true", help="record the current upstream commit as synced")
+    p.add_argument("--verify", action="store_true",
+                   help="offline: fail if a vendored copy file was edited (checks sha256 in upstream.json)")
     p.set_defaults(fn=cmd_upstream_check)
+
+    p = sub.add_parser("search", help="search the brain without an agent: JSON results (keyword, plus semantic when available)")
+    p.add_argument("query")
+    p.add_argument("--limit", type=int, default=6)
+    p.add_argument("--lexical", action="store_true", help="keyword search only")
+    p.set_defaults(fn=cmd_search)
+
+    p = sub.add_parser("freshness", help="freshness lint: undated claims about fast-changing facts (references/freshness-policy.md)")
+    p.add_argument("--strict", action="store_true", help="warnings (aged stamps) also fail the run")
+    p.set_defaults(fn=cmd_freshness)
 
     team = sub.add_parser("team", help="team spaces").add_subparsers(dest="sub", required=True)
     p = team.add_parser("add")

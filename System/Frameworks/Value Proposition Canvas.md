@@ -13,7 +13,7 @@ confidence: high
 This note explains the Value Proposition Canvas (Osterwalder, Pigneur, Bernarda, Smith, Value Proposition Design, 2014): what it is, how to fill it from evidence, how to judge fit, and how Company Brain implements it (template, `vpc` skill, frontmatter). Theory is stable; the worked example is fictional.
 
 ## What it is
-A tool for designing and testing the fit between what a customer segment needs and what you offer. It has two halves (Value Proposition Design, Wiley 2014; https://www.strategyzer.com/library/the-value-proposition-canvas, as of 2026-10):
+A tool for designing and testing the fit between what a customer segment needs and what you offer. It has two halves (Value Proposition Design, Wiley 2014; https://www.strategyzer.com/library/the-value-proposition-canvas):
 
 ```
  VALUE MAP (what we offer)            CUSTOMER PROFILE (what they need)
@@ -64,4 +64,4 @@ Segment: operations leads at 50 to 200 person agencies. Top job: deliver client 
 
 ## References
 - Osterwalder, Pigneur, Bernarda, Smith, Value Proposition Design, Wiley, 2014 (stated).
-- Strategyzer, The Value Proposition Canvas, https://www.strategyzer.com/library/the-value-proposition-canvas (as of 2026-10).
+- Strategyzer, The Value Proposition Canvas, https://www.strategyzer.com/library/the-value-proposition-canvas.

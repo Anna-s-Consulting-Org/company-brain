@@ -17,7 +17,7 @@ Theory notes: `System/Frameworks/Strategy Kernel.md`, `Playing to Win.md`, `Busi
 | Mode | Writes |
 |---|---|
 | mission, vision, values | `Company/Mission.md`, `Vision.md`, `Values.md` (edit in place, add a revision-history row) |
-| kernel | `brain new strategy --title "<horizon, e.g. 2026-2028>" --set horizon=<h>` |
+| kernel | `brain new strategy --title "<horizon, e.g. YYYY-YYYY>" --set horizon=<h>` |
 | playing-to-win | `brain new playing-to-win --title "<name>" --set horizon=<h>` |
 | bmc | `brain new bmc --title "<business or product>"` |
 

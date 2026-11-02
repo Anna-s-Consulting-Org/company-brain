@@ -16,7 +16,7 @@ Method: `System/Frameworks/OKRs.md`. Schema: `type: objective` in `references/sc
 ## Modes (infer from the request)
 
 ### create
-1. Ask level (company, team, personal), period (`2026` annual or `2026-Q4`), owner, and team for team level. Default: my team, current quarter.
+1. Ask level (company, team, personal), period (`YYYY` annual or `YYYY-Qn`), owner, and team for team level. Default: my team, current quarter.
 2. **Parent**: list candidate parents one level up for the same period (annual company KRs for a quarterly company objective; company KRs for a team objective; team KRs for a personal goal) and ask which KR this ladders up to. A company annual objective may have no parent; everything else should.
 3. **Draft with the user**. Quality bar, enforce gently:
    - Objective: qualitative, motivating, one line, no numbers.

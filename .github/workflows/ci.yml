@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: the workflow only reads the repo.
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Tests and guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the changed-notes check below diffs against the base branch
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pytest pyyaml
+
+      # Unit tests for the scripts copied from obsidian-second-brain (freshness lint, check-in, quote
+      # checker, Crew, folder ingestion) and for the guards and skills that wire them in. PyYAML is
+      # needed only by folder ingestion; the engine itself is stdlib-only.
+      - name: Run tests
+        run: python -m pytest .company-brain/tests -q
+
+      # Files marked "copy" in .company-brain/upstream.json are vendored byte for byte. Fail if
+      # one was edited here. Take upstream changes with: ./brain upstream-check --copy
+      - name: Vendored files are unedited
+        run: ./brain upstream-check --verify
+
+      # The brain's own notes must obey the freshness policy (every fact timeless, dated or a pointer).
+      # Errors fail the build. Aged `as of` stamps are warnings only, so a note growing old never
+      # breaks CI by itself.
+      - name: Freshness lint
+        run: ./brain freshness
+
+      # Layer leaks, layer mismatches and private sections in shared notes are errors.
+      - name: Brain check
+        run: ./brain check --severity error
+
+      # New brains start from .company-brain/scaffold. Fail if it drifted from System/, Templates/,
+      # CLAUDE.md, Home.md. Fix with: ./brain scaffold-sync
+      - name: Scaffold is in sync
+        run: ./brain scaffold-sync --check
+
+      # The write hook checks every note Claude writes; this applies the same AI-first check to the notes
+      # a pull request changes, whoever or whatever wrote them. Exits 1 on anything it cannot fix.
+      - name: Check changed notes
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff --name-only --diff-filter=AM "origin/${{ github.base_ref }}...HEAD" -- '*.md' \
+            | xargs -r python3 .company-brain/scripts/check_notes.py --path .

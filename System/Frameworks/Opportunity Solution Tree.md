@@ -13,7 +13,7 @@ confidence: high
 This note explains the Opportunity Solution Tree (Teresa Torres, Product Talk, 2016; Continuous Discovery Habits, 2021): the outcome, opportunity, solution, and assumption-test layers, how to grow and prune a tree, and how Company Brain stores each node as a linked note rendered as a Mermaid tree and an Obsidian canvas.
 
 ## What it is
-A visual map from a desired outcome to the customer needs that could drive it, the solutions that could address those needs, and the tests that de-risk each solution (Teresa Torres, https://www.producttalk.org/opportunity-solution-trees/, as of 2026-10; Continuous Discovery Habits, Product Talk LLC, 2021).
+A visual map from a desired outcome to the customer needs that could drive it, the solutions that could address those needs, and the tests that de-risk each solution (Teresa Torres, https://www.producttalk.org/opportunity-solution-trees/; Continuous Discovery Habits, Product Talk LLC, 2021).
 
 ```
                  Outcome (a measurable result, usually one KR)
@@ -58,4 +58,4 @@ Outcome: median time to first shared board falls from 3 days to 1 day (KR2 of a 
 
 ## References
 - Teresa Torres, Continuous Discovery Habits, Product Talk LLC, 2021 (stated).
-- Product Talk, Opportunity Solution Trees, https://www.producttalk.org/opportunity-solution-trees/ (as of 2026-10).
+- Product Talk, Opportunity Solution Trees, https://www.producttalk.org/opportunity-solution-trees/.

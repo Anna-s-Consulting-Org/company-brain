@@ -2,7 +2,7 @@
 const f = tp.file.folder(true);
 const layer = f.startsWith("Company") ? "company" : f.startsWith("Teams") ? "team" : "personal";
 const team = f.startsWith("Teams/") ? f.split("/")[1] : "";
-const period = await tp.system.prompt("period: 2026-Q4 for a quarter, 2026 for annual");
+const period = await tp.system.prompt("period: YYYY-Qn for a quarter, YYYY for annual");
 const owner = await tp.system.prompt("owner as [[Full Name]]");
 const parent = await tp.system.prompt("parent: the objective or KR this ladders up to, as [[Note#^kr1]]", "");
 -%>

@@ -1,0 +1,26 @@
+# Files vendored byte for byte from obsidian-second-brain (mode "copy" in
+# .company-brain/upstream.json). Never convert their line endings: the sha256
+# recorded there is of the exact bytes, so a CRLF checkout would look like an edit.
+.company-brain/references/ai-first-rules.md -text
+.company-brain/references/freshness-policy.md -text
+.company-brain/scripts/freshness_lint.py -text
+.company-brain/scripts/vault_scan.py -text
+.company-brain/tests/test_freshness_lint.py -text
+.company-brain/scripts/note_io.py -text
+.company-brain/scripts/sweep_non_ascii.py -text
+.company-brain/scripts/vault_health.py -text
+.company-brain/scripts/checkin.py -text
+.company-brain/scripts/check_notes.py -text
+.company-brain/scripts/verify_quotes.py -text
+.company-brain/scripts/document_to_pdf.py -text
+.company-brain/scripts/crew.py -text
+.company-brain/scripts/ingest_batch.py -text
+.company-brain/tests/test_checkin.py -text
+.company-brain/tests/test_verify_quotes.py -text
+.company-brain/tests/test_crew.py -text
+.company-brain/tests/test_document_to_pdf.py -text
+.company-brain/tests/test_ingest_batch.py -text
+.company-brain/tests/test_vault_health_precision.py -text
+.company-brain/tests/test_vault_health_unicode.py -text
+.company-brain/tests/test_user_excludes.py -text
+.company-brain/tests/_bash.py -text

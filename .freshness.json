@@ -1,0 +1,4 @@
+{
+  "window-days": 7,
+  "exempt-dirs": [".company-brain", "Sources", "Exports"]
+}

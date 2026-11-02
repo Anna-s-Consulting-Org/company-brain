@@ -23,7 +23,7 @@ Adapted from the obsidian-second-brain write rules (MIT, (c) 2026 Eugeniu Ghelbu
 Same as obsidian-second-brain:
 
 ```markdown
-- [ ] 🔴 **Title** · @{2026-10-29}
+- [ ] 🔴 **Title** · @{YYYY-MM-DD}
 	One line of context. [[Project]] [[Owner]]
 ```
 Priority: 🔴 blocking or this-week critical, 🟡 important, 🟢 nice to have. Done cards move to the Done column as `- [x] ~~**Title**~~ ✅ Oct 22` and are never deleted.

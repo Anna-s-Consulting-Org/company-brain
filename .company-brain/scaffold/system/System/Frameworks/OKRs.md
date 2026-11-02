@@ -13,22 +13,22 @@ confidence: high
 This note explains Objectives and Key Results (Andy Grove at Intel; popularized by John Doerr, Measure What Matters, 2018): how to write objectives and key results, how they cascade across company, team, and personal layers, how to check in and score, and how Company Brain stores them (one note per objective, KRs as list items with inline fields and block ids).
 
 ## What it is
-A goal system with two parts. The **objective** says what you want to achieve: qualitative, significant, motivating. The **key results** say how you will know: measurable, time-bound, usually two to four per objective. Grove developed the practice at Intel (High Output Management, 1983); Doerr brought it to Google and wrote Measure What Matters (Portfolio, 2018). Google's public guide: https://rework.withgoogle.com/intl/en/guides/set-goals-with-okrs (as of 2026-10).
+A goal system with two parts. The **objective** says what you want to achieve: qualitative, significant, motivating. The **key results** say how you will know: measurable, time-bound, usually two to four per objective. Grove developed the practice at Intel (High Output Management, 1983); Doerr brought it to Google and wrote Measure What Matters (Portfolio, 2018). Google's public guide: https://rework.withgoogle.com/intl/en/guides/set-goals-with-okrs.
 
 ## Writing them
 - Objective: one line, no numbers, worth getting out of bed for. "Make onboarding effortless for new teams."
 - Key result: an outcome with a baseline and a target, "Week-2 retention of new teams from 38 percent to 50 percent". Milestone KRs ("migration complete") are allowed but should be the minority.
 - Outputs are not key results: "launch the new checklist" is a project; its KR is the change it should cause.
-- Scoring: Google's re:Work guide puts the sweet spot for the average score across OKRs at 0.6 to 0.7; scoring 1.0 every time means the goals were not ambitious enough (as of 2026-10, rework.withgoogle.com).
+- Scoring: Google's `re:Work` guide puts the sweet spot for the average score across OKRs at 0.6 to 0.7; scoring 1.0 every time means the goals were not ambitious enough (rework.withgoogle.com).
 - Committed vs aspirational: many teams mark committed OKRs (expected to hit 1.0) separately from aspirational ones (expected to fall short). Say which kind each objective is.
 
 ## The cascade in Company Brain
 ```
 Mission / Vision
-  └─ Annual company objective (2026)                 Company/OKRs
-       └─ Quarterly company objective (2026-Q4)     parent: annual KR
-            └─ Team objective (2026-Q4)              Teams/<Team>/OKRs, parent: company KR
-                 └─ Personal goal (2026-Q4)          Personal/Goals, parent: team KR (local only)
+  └─ Annual company objective (YYYY)                 Company/OKRs
+       └─ Quarterly company objective (YYYY-Qn)     parent: annual KR
+            └─ Team objective (YYYY-Qn)              Teams/<Team>/OKRs, parent: company KR
+                 └─ Personal goal (YYYY-Qn)          Personal/Goals, parent: team KR (local only)
                       └─ projects, solutions, weekly work linked to the KR
 ```
 Alignment, not command: teams propose their objectives and link them to the company KR they serve. A team objective with no parent is flagged by `brain check`.
@@ -56,5 +56,5 @@ Compare progress with time elapsed in the period. Clearly behind pace, or confid
 ## References
 - John Doerr, Measure What Matters, Portfolio, 2018 (stated).
 - Andy Grove, High Output Management, Random House, 1983 (stated).
-- Google re:Work, Set goals with OKRs, https://rework.withgoogle.com/intl/en/guides/set-goals-with-okrs (as of 2026-10).
-- What Matters, What is an OKR? Definition and examples, https://www.whatmatters.com/faqs/okr-meaning-definition-example (as of 2026-10).
+- Google `re:Work`, Set goals with OKRs, https://rework.withgoogle.com/intl/en/guides/set-goals-with-okrs.
+- What Matters, What is an OKR? Definition and examples, https://www.whatmatters.com/faqs/okr-meaning-definition-example.

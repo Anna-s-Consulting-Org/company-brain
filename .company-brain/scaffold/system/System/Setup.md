@@ -59,7 +59,7 @@ Run `/company-brain:export`, create a Project on claude.ai, paste `Exports/Claud
 ```
 
 ## 6. Onboarding a teammate
-1. Clone the repository and open it in Obsidian (step 1).
+1. Get a copy of the repository and open it in Obsidian (step 1).
 2. Install the plugin (step 2), then run `/company-brain:setup`: it creates their own `Personal/` layer and shared profile.
 3. `./brain connect --sync` to mount shared sources on their machine.
 4. First week: `/company-brain:daily` each morning, `/company-brain:weekly` on Friday.
