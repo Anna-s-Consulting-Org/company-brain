@@ -66,13 +66,25 @@ So `drive` mode in practice is a hybrid: git (or a copied folder) for the engine
 
 ### Warnings
 - **Keep `Personal/` out of Drive.** If someone puts the whole brain folder in Drive instead of linking only the two shared folders, their personal layer syncs to everyone. Nothing checks for this.
-- **In the hybrid, stop tracking the linked folders in git.** Git stores a symlink as a link to a path on your machine, so committing `Company/` as a symlink shares a path that is wrong for everyone else. Remove `Company/` and `Teams/` from the repository and add them to `.gitignore` before linking them.
+- **In the hybrid, remove `Company/` and `Teams/` from git before linking them.** Git does not follow a symlink: it stores the link itself, which is a folder path on your machine (for example `/Users/you/Library/CloudStorage/...`). If you commit it, every teammate who pulls gets a link to a path that does not exist on their computer, and the shared notes disappear for them. So do it once, before anyone links: untrack the two folders, ignore them, commit, and only then move them into Drive. See step 1 of the recipe below.
+- **Write the ignore lines without a trailing slash.** In `.gitignore`, `/Company/` matches only a real folder, and git does not treat a symlink as a folder, so the `Company` link would still show up as a new file to commit. Use `/Company` and `/Teams`.
 - **Each teammate makes their own links**, pointing at their own Drive folder (on macOS, `~/Library/CloudStorage/GoogleDrive-<account>/Shared drives/<Shared drive>/`). On Windows, creating symlinks needs Developer Mode or administrator rights.
 - **Checks only run on Claude's writes.** The write hooks (layer guard, AI-first check, freshness) run when Claude writes. Edits made in Obsidian or the Drive web app are not checked until someone runs `brain check`. Git mode has CI as the backstop; Drive mode has none.
 - **Conflicts are not detected.** When two people edit one file, or two people run `brain refresh` at the same time and both rewrite generated views, Drive may keep both versions as separate files. Nothing in `brain check` looks for them.
 
 ### The manual recipe (macOS example)
-Run from the brain folder after reading the warnings above. `<account>` and `<Shared drive>` are yours.
+Run from the brain folder after reading the warnings above. `<account>`, `<Shared drive>` and `<Team>` are yours.
+
+**1. Once, by one person: take the shared folders out of git.** The notes stay on your disk; git just stops tracking them. Commit and push this before anyone creates a link.
+
+```bash
+git rm -r --cached Company Teams
+printf '/Company\n/Teams\n' >> .gitignore
+git add .gitignore
+git commit -m "Share Company and Teams through Google Drive, not git"
+```
+
+**2. The same person: move the folders into Drive and link them.**
 
 ```bash
 DRIVE="$HOME/Library/CloudStorage/GoogleDrive-<account>/Shared drives/<Shared drive>"
@@ -82,7 +94,16 @@ mv "Teams/<Team>" "$DRIVE/<Team>" && ln -s "$DRIVE/<Team>" "Teams/<Team>"
 ./brain check
 ```
 
-Teammates do only the `ln -s` lines (without `mv`), pointing at their own Drive path, then `./brain check`.
+Repeat the `Teams/<Team>` line for every team: step 1 stops tracking all of `Teams/`, so a team folder left out of Drive is no longer shared at all. `git status` should now show neither `Company` nor `Teams`. If it lists them, the ignore lines are wrong (see the trailing slash warning).
+
+**3. Each teammate.** Wait until the folders are in Drive, then pull the commit from step 1. The pull removes their local copies of `Company/` and `Teams/`, which is expected, because Drive now holds them. Then create the links to their own Drive path, without `mv`:
+
+```bash
+DRIVE="$HOME/Library/CloudStorage/GoogleDrive-<account>/Shared drives/<Shared drive>"
+ln -s "$DRIVE/Company" Company
+mkdir -p Teams && ln -s "$DRIVE/<Team>" "Teams/<Team>"
+./brain check
+```
 
 ## Git, drive and local compared
 
