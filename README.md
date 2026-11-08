@@ -70,6 +70,10 @@ New brains start from `.company-brain/scaffold/`. After editing `System/`, `Temp
 
 To pick up improvements from obsidian-second-brain, run `./brain upstream-check`. It fetches the original repo and lists which of the files Company Brain borrowed (see `THIRD_PARTY_NOTICES.md`) changed since the commit recorded in `.company-brain/upstream.json`. `--diff` shows the changes, `--copy` takes the files we keep unchanged as they are, and after porting the adapted ones by hand `--mark` records the new commit; commit the result.
 
+## Roadmap
+
+`ROADMAP.md` holds an honest review of what Company Brain does well and where it falls short, and the plan that follows from it: access for non-technical users, automation, promotable notes and skills, large organizations and protection. The items are plans, not built features.
+
 ## Layout
 
 ```
