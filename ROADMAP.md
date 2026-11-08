@@ -45,7 +45,7 @@ Item codes refer to the sections below.
 |---|---|
 | Now | A1 check the facts the access plan depends on; D1 turn on semantic search; E1 separate the product from company brains; E3 keep `Personal/` out of anything shared; C1 test note promotion into Drive folders |
 | Next | A2 a documented path for non-technical users; A3 take `uv` off that path; A4 setup installs Python when it is missing; B1 rebuild views after every write; B3 scheduled checks; B4 `brain share --drive`; C2 skill promotion; C3 skill proposals from Drive; D2 team names in filenames; D3 restricted teams; D4 measure at scale; E2 checks on every edit; E4 detect conflict copies |
-| Later | A5 Obsidian optional; B2 setup creates the schedules; B5 automatic plugin updates; B6 automatic index updates; B7 one approval inbox; C4 team skill plugins; C5 CI for skills; D5 shared search index; D6 partial mounts; D7 several linked brains; D8 administration; E5 to E7 skill review records, secret scans, backups |
+| Later | B2 setup creates the schedules; B5 automatic plugin updates; B6 automatic index updates; B7 one approval inbox; C4 team skill plugins; C5 CI for skills; D5 shared search index; D6 partial mounts; D7 several linked brains; D8 administration; E5 to E7 skill review records, secret scans, backups |
 
 ## A. Access for non-technical users
 **Goal**: a non-technical colleague can set up and use the brain without knowing what Python, `uv` or git are. Python stays: the engine is written in it and shares code with upstream, which is also Python. The work is to make Python install itself or come with the app, and to take everything else off the user's path.
@@ -59,13 +59,12 @@ Item codes refer to the sections below.
 | Python | installed by hand; on a fresh Mac, `python3` first asks to install the developer tools | provided by Cowork, or installed by setup with one yes |
 | `uv` | needed for the MCP server (Claude Desktop chat) | off the user's path: Cowork does not need it |
 | git | needed to get and share the brain | off the user's path in Drive mode: notes through Drive, the plugin through a marketplace or the organization's catalog |
-| Obsidian and four plugins | needed for hubs and boards | optional |
+| Obsidian and four plugins | needed for hubs and boards | stays required |
 
 - **A1 Check the facts (Now).** Does Cowork's environment include `python3`? Can the Claude app install a plugin from a GitHub marketplace on a computer without git? Can an organization publish the plugin through its claude.ai plugin catalog, so nobody installs it by hand?
 - **A2 A documented non-technical path (Next).** Drive plus the Claude app, offered by the setup skill and written up in [[Setup]].
 - **A3 Take `uv` off that path (Next).** Only the MCP server for Claude Desktop chat needs `uv`; Cowork users do not. Later, check whether the MCP server can ship as a one-click Claude Desktop extension.
 - **A4 Setup installs Python when it is missing (Next).** Setup checks for a working `python3`, explains in one sentence why it is needed, and installs it with the user's yes (on macOS, the developer tools prompt or the python.org installer; on Windows, the python.org installer). Needed only if A1 shows Cowork does not provide it.
-- **A5 Obsidian optional (Later).** Generated views are already plain markdown readable anywhere. Dataview hubs and Kanban boards need Obsidian; `brain refresh` could also write static versions of the hubs.
 
 **Done when**: someone who has never used a terminal can, with the Claude app and Drive, run setup, daily, weekly, meeting and promote, tested on a fresh macOS and a fresh Windows computer.
 
