@@ -42,7 +42,7 @@ Personal to team to company is always deliberate. Ask Claude to share or publish
 
 **Local.** Nothing is shared; good for trying the system alone.
 
-The choice is `sharing.model` in `brain.yaml`.
+The choice is `sharing.model` in `brain.yaml`. What each model does step by step, what drive mode leaves manual, and a comparison: [[Sharing models]].
 
 ## What Claude pulls from your tools
 The weekly and daily skills read calendar, Slack, email, Jira, Drive, and meeting notes only through the connectors you have enabled, and write what they find into your **personal** notes. Nothing from your messages reaches a team or company note unless you approve the team update or a promotion.
