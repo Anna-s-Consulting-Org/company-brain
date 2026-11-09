@@ -1,6 +1,7 @@
 ---
 name: capture
 description: Capture an idea in seconds - appends to a related idea note if one exists, otherwise writes a short personal idea note in Personal/Notes, and mentions it in today's daily note; later the idea can become an opportunity, a solution, or a project, or be promoted. Use for "capture this", "quick idea", "note this idea", "jot this down", "idea:".
+argument-hint: "[idea]"
 ---
 
 # Capture
@@ -15,7 +16,7 @@ Zero friction: one idea, one line or a few, saved where it can be found again. T
 
 ## Steps
 1. **Take the idea** from the argument. With no argument, take the most recent idea, thought, or "what if" from the conversation and say which one you picked. A task is not an idea: send it to `Personal/My Board.md` (Inbox) as a card instead (`board` skill), and say so.
-2. **Search for a related idea** (`brain search "<key words>"`, then `grep -ril` in `Personal/Notes/` for the main terms). If a note on the same idea exists, append a dated bullet (`- YYYY-MM-DD: <the new angle>`) under its `## Idea` section, and stop at step 5.
+2. **Search for a related idea** (`brain search "<key words>"`, then `grep -rilF` in `Personal/Notes/` for the main terms). Only a note in `Personal/Notes/` is a candidate to append to: if one on the same idea exists, append a dated bullet (`- YYYY-MM-DD: <the new angle>`) under its `## Idea` section, then go on to step 5. A related note in `Company/` or `Teams/` is never appended to (that would share a personal idea); link it from the new note's `## Context` instead.
 3. **Create the note**: `brain new knowledge --title "Idea - <Short title>" --layer personal --set source_type=conversation --set source_path=conversation --set confidence=speculation`. Then edit it:
    - add `idea` to `tags` (`tags: [knowledge, idea]`);
    - replace the template preamble with 2-3 sentences: what the idea is, where it came from (this conversation, today's date), and that it is unvalidated;

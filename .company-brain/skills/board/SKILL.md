@@ -1,6 +1,7 @@
 ---
 name: board
 description: Show or update kanban boards at any layer - my personal board, a team board, or a roadmap; flags overdue and stale cards, adds cards from the conversation, moves done work, and triages stale items in bulk. Use for "show my board", "team board", "add a task", "what's overdue", "clean up the board".
+argument-hint: "[mine | team | hygiene]"
 ---
 
 # Board

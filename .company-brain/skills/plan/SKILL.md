@@ -1,6 +1,7 @@
 ---
 name: plan
 description: Run the annual or quarterly planning cycle - review and score the last period, revisit mission, vision, and strategy, set annual then quarterly objectives that cascade to teams, choose discovery focus, prioritize, update the roadmap, and write the Annual or Quarterly Plan note with the operating cadence. Use for "annual planning", "quarterly planning", "plan Q1", "set next quarter".
+argument-hint: "[annual | quarterly]"
 ---
 
 # Plan

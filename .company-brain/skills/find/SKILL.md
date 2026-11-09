@@ -1,6 +1,7 @@
 ---
 name: find
 description: Search the brain and return results with context, not just filenames - title, layer, type, owner, status, date, and the excerpt that matches - grouped by type, with synonyms tried when results are thin and stale or draft notes flagged. Use for "find", "search the brain", "where is", "do we have a note on", "what do we know about".
+argument-hint: "<query>"
 ---
 
 # Find
@@ -15,7 +16,7 @@ Read-only. Finds notes and explains what each one is, so the user can act on the
 
 ## Steps
 1. **Read the query** from the argument. With no argument, ask what to find. Strip filler words; keep names, titles, and terms of art.
-2. **Search.** Run `brain search "<query>" --limit 15` (keyword ranking, plus semantic search when an index is available; `--lexical` forces keyword only). With the brain MCP server connected, `brain_search` gives the same results. For an exact phrase, a name, or a number, also `grep -ril "<phrase>"` across `Company/`, `Teams/`, and `Personal/`. Check `index.md` for titles and aliases.
+2. **Search.** Run `brain search "<query>" --limit 15` (keyword ranking, plus semantic search when an index is available; `--lexical` forces keyword only). With the brain MCP server connected, `brain_search` gives the same results. For an exact phrase, a name, or a number, also `grep -rilF "<phrase>"` across `Company/`, `Teams/`, and `Personal/` (`-F` matches the text literally, so `C++`, `$1.2M` or `[[Jane Doe]]` work). Check `index.md` for titles and aliases.
 3. **Widen when thin.** Fewer than three good hits: try synonyms and related terms (customer and client, OKR and objective and key result, the team's name and its lead), the singular and plural, and the note-name prefixes (`OPP - `, `SOL - `, `DEC-`). Say which variants you tried.
 4. **Read the top hits** far enough to describe them: frontmatter (`type`, `layer`, `team`, `owner`, `status`, `date`, `updated`, `last-checked`) and the part that matches.
 5. **Answer** grouped by type (strategy and OKRs, discovery, projects, decisions, meetings, people and teams, knowledge, personal). For each result: `[[Note title]]`, path, layer, owner and status when set, the date, and a one or two line excerpt that shows why it matched. Flag notes that are `status: draft` (not agreed), superseded decisions (`superseded_by`), and facts with an old `as of` stamp or no `last-checked`.

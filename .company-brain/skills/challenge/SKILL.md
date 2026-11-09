@@ -1,6 +1,7 @@
 ---
 name: challenge
 description: Red-team an idea, plan, or belief against the brain's own history - the strategy and its guiding policy, Playing to Win choices, past decisions and the options they rejected, experiment results, OKRs, prioritization scores, and meeting notes - with every piece of counter-evidence quoted and linked, then a verdict. Use for "challenge this", "poke holes in", "devil's advocate", "red team this plan", "are we sure about", before a decision or a planning cycle.
+argument-hint: "[idea or plan]"
 ---
 
 # Challenge
@@ -16,19 +17,19 @@ The point is to pressure-test, not to agree. The brain remembers what the compan
 ## Steps
 1. **State the position.** Take the idea, plan, or belief from the argument; with no argument, take the user's current position from the conversation and restate it in one or two sentences. Ask only if it is truly unclear.
 2. **List its premises**: the 3-6 things that must be true for it to be right (about customers, the market, capacity, cost, timing, what was tried before).
-3. **Search for counter-evidence** in parallel (subagents work well here), each returning note path, line, and the exact line quoted:
-   - **Strategy fit**: `Company/Strategy/` and the team's `Strategy/`: does it follow the guiding policy, the where-to-play and how-to-win choices, the values? Does it fall into a choice the strategy rejected?
-   - **Decisions**: `*/Decisions/`: past decisions on the same question, the options they rejected and why, and any `supersedes` chain.
-   - **Discovery**: `*/Discovery/`: experiments (`EXP - `) whose results bear on a premise, opportunities with contrary evidence, solutions scored low on impact or high on effort.
+3. **Search for counter-evidence** in parallel (subagents work well here), each returning note path, line, and the exact line quoted. `<L>` means every layer: `Company`, each `Teams/<Team>`, and `Personal`:
+   - **Strategy fit**: `Company/Strategy/` and `Teams/<Team>/Strategy/`: does it follow the guiding policy, the where-to-play and how-to-win choices, the values? Does it fall into a choice the strategy rejected?
+   - **Decisions**: `<L>/Decisions/`: past decisions on the same question, the options they rejected and why, and any `supersedes` chain.
+   - **Discovery**: `<L>/Discovery/`: experiments (`EXP - `) whose results bear on a premise, opportunities with contrary evidence, solutions scored low on impact or high on effort.
    - **OKRs and priorities**: does it serve a current key result (`brain context --level 1`)? What would it displace on the roadmap or the board?
-   - **Meetings and knowledge**: risks someone raised, lessons learned, sources that say otherwise.
+   - **Meetings and knowledge**: `<L>/Meetings/` and `<L>/Knowledge/` (`Personal/Notes/` for my own): risks someone raised, lessons learned, sources that say otherwise.
 4. **Prove every quote** before using it:
    ```bash
    python3 "<engine>/scripts/verify_quotes.py" --path "<brain>" <<'JSON'
    [{"path": "<note path>", "line": 12, "quote": "<line copied from that note>"}]
    JSON
    ```
-   Drop any quote that does not come back `"ok": true`; use `found_line` from the output.
+   Put the closing `JSON` at the very start of its line, without the list indentation, or bash never ends the heredoc. Drop any quote that does not come back `"ok": true`; use `found_line` from the output.
 5. **Write the red-team analysis**:
    - **Position**: the claim, restated.
    - **Premises**: each one marked supported, contradicted, or untested by the brain.

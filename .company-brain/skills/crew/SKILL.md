@@ -1,6 +1,7 @@
 ---
 name: crew
 description: Share one plain-markdown logbook across Claude Code, Codex, Cursor and Grok Bot, so each agent knows what the others just did. Records jobs and lessons, reads what is new, and keeps lessons as suggestions until a human decides. The logbook stays in Personal/ and is never committed. Use for "crew setup", "crew log", "what did the other agents do", "record this job", "show crew lessons".
+argument-hint: "setup | add | lesson | show | digest | keep L1 | drop L1"
 ---
 
 # Crew

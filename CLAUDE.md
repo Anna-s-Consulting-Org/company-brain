@@ -87,7 +87,8 @@ Filenames are globally unique on purpose (Obsidian resolves links by filename). 
 | `export-pack` | read-only Claude Project pack |
 | `search "<query>" [--limit N] [--lexical]` | search the brain without an agent (JSON), for scripts and cron |
 | `freshness [--strict]` | freshness lint: undated claims about fast-changing facts, aged `as of` stamps, unmapped pointers. Also part of `check` |
-| `upstream-check [--verify]` | what changed upstream in the files borrowed from obsidian-second-brain; `--verify` fails if a vendored copy was edited |
+| `upstream-check [--verify]` | what changed upstream in the files and commands borrowed from obsidian-second-brain, and new upstream commands not triaged yet; `--verify` fails if a vendored copy was edited |
+| `commands [--check]` | regenerate the `/company-brain:<name>` project commands from the skills |
 | `context --level N` | company context as JSON |
 
 Kinds for `new`: objective, annual-plan, quarterly-plan, strategy, playing-to-win, vpc, bmc, outcome, opportunity, solution, experiment, project, meeting, decision, knowledge, person, one-on-one, daily, weekly, team-update, team-weekly.
@@ -98,9 +99,9 @@ Kinds for `new`: objective, annual-plan, quarterly-plan, strategy, playing-to-wi
 
 ## 4. Skills
 
-Run as `/brain-<name>` (project commands in `.claude/commands/`, no install needed), as `/company-brain:<name>` with the plugin installed, or by asking in plain words. Each `/brain-<name>` command reads `.company-brain/skills/<name>/SKILL.md`; `/brain-task` is the board skill's add-a-task step. Catalog with outputs: `System/Skills.md`.
+Run as `/company-brain:<name>` or by asking in plain words. The plugin provides them; without it (and in cloud sessions, which do not load plugins) the same names come from `.claude/commands/company-brain/`, thin pointers to each `SKILL.md` that `./brain commands` generates. Never edit those by hand: edit the skill and rerun it. Catalog with outputs: `System/Skills.md`.
 
-setup, context, daily, weekly, team-weekly, okr, plan, strategy, vpc, ost, prioritize, roadmap, org, project, meeting, decide, board, promote, connect, ingest, health, export, checkin, reconcile, crew, save, capture, find, recap, challenge.
+setup, context, daily, weekly, team-weekly, okr, plan, strategy, vpc, ost, prioritize, roadmap, org, project, meeting, decide, board, promote, connect, ingest, health, export, checkin, reconcile, crew, save, capture, find, recap, challenge, task.
 
 Method notes for every framework (Value Proposition Canvas, Opportunity Solution Tree, Effort-Impact Matrix with RICE, OKRs, Strategy Kernel, Playing to Win, Business Model Canvas, Now-Next-Later Roadmap): `System/Frameworks/`. Read the relevant one before applying a framework.
 
@@ -135,7 +136,7 @@ Kanban card: `- [ ] 🔴 **Title** · @{YYYY-MM-DD}` with an indented context li
 
 - Do not use the obsidian-second-brain MCP tools (`mcp__plugin_obsidian-second-brain_*`) here: they point at a different (personal) vault. Use file tools, the `brain` CLI, or the `company-brain` brain MCP tools.
 - Do not write to `.company-brain/` (the engine) unless the user is developing the system itself.
-- Do not edit vendored files (`"mode": "copy"` in `.company-brain/upstream.json`, for example the freshness lint). A hook blocks it, and tests and CI verify their checksums. Take upstream changes with `./brain upstream-check --copy`.
+- Do not edit vendored files (`"mode": "copy"` in `.company-brain/upstream.json`, for example the freshness lint). A hook blocks it, and tests and CI verify their checksums. Take upstream changes with `./brain upstream-check --copy`. To bring in new or changed upstream commands and features, follow `.company-brain/references/upstream-sync.md`.
 - Do not edit approved mission, vision, values, or strategy text without showing the diff and getting a yes.
 - Do not create OKRs, plans, or roadmap moves for a team without that team's lead; draft them as proposals.
 - Do not put performance, compensation, health, or personal-life information in shared notes.

@@ -1,6 +1,7 @@
 ---
 name: ingest
 description: Ingest a document or a whole folder into the brain - a file under Sources/, a folder of files in resumable batches, a Google Doc via the Drive connector, a URL, or pasted text; writes a knowledge note in the right layer and updates the strategy, VPCs, opportunities, people, projects, and OKRs it informs, with dated, attributed claims. Use for "ingest this", "read this doc into the brain", "ingest this folder", "summarize this deck into the brain", "what does this file change".
+argument-hint: "<path, URL or text>"
 ---
 
 # Ingest

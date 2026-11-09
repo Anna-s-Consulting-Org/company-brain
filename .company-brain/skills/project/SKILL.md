@@ -1,6 +1,7 @@
 ---
 name: project
 description: Create or update a project in the right layer - goal, scope, owner, the key results it serves, linked solution, status log, milestones, and a card on the layer board; or summarize project status for a layer. Use for "new project", "update project X", "project status", "what projects serve this KR".
+argument-hint: "[project name or status]"
 ---
 
 # Project

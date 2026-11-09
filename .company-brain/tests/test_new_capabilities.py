@@ -20,6 +20,8 @@ import pytest
 ENGINE = Path(__file__).resolve().parents[1]
 BRAIN = ENGINE.parent
 SCRIPTS = ENGINE / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+import brain as brain_cli  # noqa: E402  (the module; `brain` is the fixture below)
 
 
 @pytest.fixture()
@@ -71,38 +73,45 @@ def test_skill_list_catalog_and_folders_agree():
 def test_every_skill_has_matching_front_matter():
     for name in skill_names():
         text = (ENGINE / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
-        head = re.match(r"---\nname: (.+)\ndescription: (.+)\n---", text)
+        head = re.match(r'---\nname: (.+)\ndescription: (.+)\n(argument-hint: "[^"\n]+"\n)?---', text)
         assert head and head.group(1) == name and len(head.group(2)) > 40, name
 
 
-# Project slash commands: Claude Code opened in the brain gets /brain-<name> without installing the
-# plugin. Each command is a thin wrapper that reads the skill's SKILL.md, so the two cannot drift.
-COMMANDS = BRAIN / ".claude" / "commands"
-COMMAND_ALIASES = {"task": "board"}  # /brain-task is the board skill's add-a-task step
+# Project slash commands: Claude Code opened in the brain gets /company-brain:<name> from
+# .claude/commands/company-brain/ without the plugin (and in cloud sessions, which load no plugins).
+# `./brain commands` generates them from the skills, so they cannot drift.
+COMMANDS = BRAIN / ".claude" / "commands" / "company-brain"
 
 
-def command_files() -> dict:
-    return {p.stem[len("brain-"):]: p for p in sorted(COMMANDS.glob("brain-*.md"))}
-
-
-def test_every_skill_has_a_project_slash_command():
-    cmds = command_files()
-    assert sorted(n for n in cmds if n not in COMMAND_ALIASES) == skill_names()
-    for name, path in cmds.items():
-        skill = COMMAND_ALIASES.get(name, name)
+def test_slash_commands_are_generated_from_the_skills():
+    r = cli(BRAIN, "commands", "--check")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert sorted(p.stem for p in COMMANDS.glob("*.md")) == skill_names()
+    for path in COMMANDS.glob("*.md"):
         text = path.read_text(encoding="utf-8")
-        head = re.match(r'---\ndescription: "([^"\n]{20,120})"\n(argument-hint: "[^"\n]+"\n)?---\n', text)
-        assert head, f"{path.name}: front matter must be a quoted description (and optional argument-hint)"
-        assert f".company-brain/skills/{skill}/SKILL.md" in text and "$ARGUMENTS" in text, path.name
-        assert (ENGINE / "skills" / skill / "SKILL.md").is_file(), path.name
-        assert text.isascii(), f"{path.name}: ASCII only"
+        head = re.match(r'---\ndescription: (".*")\n(?:argument-hint: (".*")\n)?---\n', text)
+        assert head, path.name
+        assert json.loads(head.group(1)) == brain_cli.skill_meta(ENGINE / "skills" / path.stem / "SKILL.md")["description"]
+        assert f".company-brain/skills/{path.stem}/SKILL.md" in text and "$ARGUMENTS" in text, path.name
+        # the skill's own "Before you start" says how to run brain; the pointer must not override it
+        assert "means `./brain`" not in text and "CLAUDE_SKILL_DIR" not in text, path.name
+
+
+def test_commands_regenerate_and_prune(brain):
+    stale = brain / ".claude" / "commands" / "company-brain" / "retired-skill.md"
+    stale.write_text("---\ndescription: \"old\"\n---\n", encoding="utf-8")
+    edited = brain / ".claude" / "commands" / "company-brain" / "daily.md"
+    edited.write_text(edited.read_text(encoding="utf-8") + "hand edit\n", encoding="utf-8")
+    check = cli(brain, "commands", "--check")
+    assert check.returncode == 1 and "retired-skill.md" in check.stdout and "daily.md" in check.stdout
+    assert cli(brain, "commands").returncode == 0
+    assert not stale.exists() and "hand edit" not in edited.read_text(encoding="utf-8")
+    assert cli(brain, "commands", "--check").returncode == 0
 
 
 def test_new_brains_get_the_slash_commands():
-    sys.path.insert(0, str(SCRIPTS))
-    import brain as brain_cli
     sources = brain_cli.scaffold_system_sources(BRAIN)
-    assert all(f".claude/commands/{p.name}" in sources for p in command_files().values())
+    assert all(f".claude/commands/company-brain/{p.name}" in sources for p in COMMANDS.glob("*.md"))
 
 
 def test_scripts_named_in_skills_exist():
