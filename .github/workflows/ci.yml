@@ -44,8 +44,13 @@ jobs:
       - name: Brain check
         run: ./brain check --severity error
 
+      # The /company-brain:<name> project commands are generated from the skills, so Claude Code opened in
+      # the brain has them without the plugin. Fail if one is missing or stale. Fix with: ./brain commands
+      - name: Slash commands match the skills
+        run: ./brain commands --check
+
       # New brains start from .company-brain/scaffold. Fail if it drifted from System/, Templates/,
-      # CLAUDE.md, Home.md. Fix with: ./brain scaffold-sync
+      # CLAUDE.md, Home.md, the slash commands. Fix with: ./brain scaffold-sync
       - name: Scaffold is in sync
         run: ./brain scaffold-sync --check
 

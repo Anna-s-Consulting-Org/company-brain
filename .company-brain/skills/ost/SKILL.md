@@ -1,6 +1,7 @@
 ---
 name: ost
 description: Build and maintain opportunity solution trees (Teresa Torres) - an outcome tied to a key result, customer opportunities with evidence, candidate solutions with impact and effort, and assumption-test experiments; renders Mermaid trees and Obsidian canvases. Use for "opportunity solution tree", "OST", "discovery", "add an opportunity", "what solutions do we have for", "plan an experiment".
+argument-hint: "[outcome or node]"
 ---
 
 # Opportunity solution tree

@@ -20,6 +20,8 @@ import pytest
 ENGINE = Path(__file__).resolve().parents[1]
 BRAIN = ENGINE.parent
 SCRIPTS = ENGINE / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+import brain as brain_cli  # noqa: E402  (the module; `brain` is the fixture below)
 
 
 @pytest.fixture()
@@ -71,8 +73,88 @@ def test_skill_list_catalog_and_folders_agree():
 def test_every_skill_has_matching_front_matter():
     for name in skill_names():
         text = (ENGINE / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
-        head = re.match(r"---\nname: (.+)\ndescription: (.+)\n---", text)
+        head = re.match(r'---\nname: (.+)\ndescription: (.+)\n(argument-hint: "[^"\n]+"\n)?---', text)
         assert head and head.group(1) == name and len(head.group(2)) > 40, name
+
+
+# Project slash commands: Claude Code opened in the brain gets /company-brain:<name> from
+# .claude/commands/company-brain/ without the plugin (and in cloud sessions, which load no plugins).
+# `./brain commands` generates them from the skills, so they cannot drift.
+COMMANDS = BRAIN / ".claude" / "commands" / "company-brain"
+
+
+def test_slash_commands_are_generated_from_the_skills():
+    r = cli(BRAIN, "commands", "--check")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert sorted(p.stem for p in COMMANDS.glob("*.md")) == skill_names()
+    for path in COMMANDS.glob("*.md"):
+        text = path.read_text(encoding="utf-8")
+        head = re.match(r'---\ndescription: (".*")\n(?:argument-hint: (".*")\n)?---\n', text)
+        assert head, path.name
+        assert json.loads(head.group(1)) == brain_cli.skill_meta(ENGINE / "skills" / path.stem / "SKILL.md")["description"]
+        assert f".company-brain/skills/{path.stem}/SKILL.md" in text and "$ARGUMENTS" in text, path.name
+        # the skill's own "Before you start" says how to run brain; the pointer must not override it
+        assert "means `./brain`" not in text and "CLAUDE_SKILL_DIR" not in text, path.name
+
+
+def test_commands_regenerate_and_prune(brain):
+    stale = brain / ".claude" / "commands" / "company-brain" / "retired-skill.md"
+    # a command generated for a skill that has since been removed
+    stale.write_text(brain_cli.command_wrapper("retired-skill", {"description": "A skill that is gone now."}),
+                     encoding="utf-8")
+    edited = brain / ".claude" / "commands" / "company-brain" / "daily.md"
+    edited.write_text(edited.read_text(encoding="utf-8") + "hand edit\n", encoding="utf-8")
+    check = cli(brain, "commands", "--check")
+    assert check.returncode == 1 and "retired-skill.md" in check.stdout and "daily.md" in check.stdout
+    assert cli(brain, "commands").returncode == 0
+    assert not stale.exists() and "hand edit" not in edited.read_text(encoding="utf-8")
+    assert cli(brain, "commands", "--check").returncode == 0
+
+
+def test_hand_written_commands_are_never_replaced_or_removed(brain):
+    folder = brain / ".claude" / "commands" / "company-brain"
+    mine = folder / "standup.md"
+    mine.write_text("---\ndescription: \"my own command\"\n---\nDo my standup.\n", encoding="utf-8")
+    assert cli(brain, "commands").returncode == 0 and mine.is_file()  # not pruned
+    taken = folder / "daily.md"
+    taken.write_text("---\ndescription: \"my own daily\"\n---\nMine.\n", encoding="utf-8")
+    r = cli(brain, "commands")
+    assert r.returncode == 1 and "daily.md: written by hand" in r.stdout
+    assert taken.read_text(encoding="utf-8").endswith("Mine.\n")  # left alone, and the run says so
+
+
+def test_commands_refuse_a_foreign_engine(brain):
+    # the repo's engine run against a copy that ships its own engine: the copy's skills decide
+    r = subprocess.run([sys.executable, str(SCRIPTS / "brain.py"), "--root", str(brain), "commands"],
+                       capture_output=True, text=True)
+    assert r.returncode != 0 and "ships its own engine" in r.stderr
+
+
+def test_skill_front_matter_must_be_one_line_values(tmp_path):
+    def meta(front: str) -> dict:
+        path = tmp_path / "SKILL.md"
+        path.write_text(f"---\nname: x\n{front}\n---\nbody\n", encoding="utf-8")
+        return brain_cli.skill_meta(path)
+    assert meta("description: 'It''s quoted'")["description"] == "It's quoted"
+    assert meta('description: "Say \\"hi\\""')["description"] == 'Say "hi"'
+    assert meta("description: plain: with a colon")["description"] == "plain: with a colon"
+    with pytest.raises(SystemExit, match="one line"):
+        meta("description: >\n  folded text")
+    with pytest.raises(SystemExit, match="not a valid double-quoted"):
+        meta('description: "bad \\q escape"')
+
+
+def test_new_brains_get_the_slash_commands():
+    sources = brain_cli.scaffold_system_sources(BRAIN)
+    assert all(f".claude/commands/company-brain/{p.name}" in sources for p in COMMANDS.glob("*.md"))
+
+
+def test_scaffold_carries_only_the_generated_commands(brain):
+    (brain / ".claude" / "commands" / "deploy-internal.md").write_text("Our deploy.\n", encoding="utf-8")
+    sources = brain_cli.scaffold_system_sources(brain)
+    assert ".claude/commands/deploy-internal.md" not in sources
+    assert ".claude/commands/upstream-sync.md" not in sources  # the maintainer command stays in this repo
+    assert ".claude/commands/company-brain/daily.md" in sources
 
 
 def test_scripts_named_in_skills_exist():

@@ -1,6 +1,7 @@
 ---
 name: prioritize
 description: Prioritize solutions and projects with an effort-impact matrix (quick wins, big bets, fill-ins, money pits) and optional RICE scores - fills missing scores with rationale, renders the matrix, and recommends roadmap moves. Use for "prioritize", "effort impact matrix", "what should we do first", "RICE", "quick wins".
+argument-hint: "[layer or team]"
 ---
 
 # Prioritize

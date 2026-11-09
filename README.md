@@ -28,7 +28,8 @@ It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian
 
 | Surface | Read | Write | Notes |
 |---|---|---|---|
-| Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 25 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:checkin`, `:reconcile`, `:prioritize`, `:roadmap`, `:meeting`, and more |
+| Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 31 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:checkin`, `:reconcile`, `:prioritize`, `:roadmap`, `:meeting`, `:save`, `:find`, and more |
+| Claude Code opened in this folder without the plugin (for example a claude.ai cloud session where company-brain is not an account or organization plugin) | yes | yes | the same `/company-brain:<name>` commands from `.claude/commands/company-brain/`; the session-start context and the after-write checks (AI-first, layer leaks, freshness) need the plugin, and only the guard on vendored files runs without it |
 | Claude Desktop chat | yes | yes | through the brain MCP server (see `System/Setup.md`) |
 | claude.ai Project | yes | no | read-only pack made by `/company-brain:export` (company and team layers only) |
 
@@ -59,14 +60,15 @@ The top diagram shows how inputs, the Claude plugin and the three layers connect
    claude plugin install company-brain@company-brain
    ```
    Restart, open Claude in this folder, and run `/company-brain:setup`.
+   Without the plugin, Claude Code opened in this folder still has every skill under the same name (`/company-brain:setup`, `/company-brain:daily`, ...), from the project commands in `.claude/commands/company-brain/`.
 3. **Sources**: `/company-brain:connect` mounts Desktop or Google Drive folders under `Sources/` (read-only symlinks).
 4. **Rhythm**: `/company-brain:daily` each morning, `/company-brain:weekly` on Fridays, `/company-brain:plan quarterly` each quarter.
 
 The `./brain` CLI works without Claude: `./brain period`, `./brain new objective --title ...`, `./brain promote <note> --to team`, `./brain refresh`, `./brain check`, `./brain freshness`, `./brain search`, `./brain export-pack`. Requirements: `python3` (the stock macOS one works), plus `uv` for the MCP server.
 
-Tests: `python3 -m pytest .company-brain/tests` (needs `pytest`). CI runs them on every push and pull request, together with `./brain freshness`, `./brain check --severity error`, `./brain upstream-check --verify` (vendored files unedited) and `./brain scaffold-sync --check`.
+Tests: `python3 -m pytest .company-brain/tests` (needs `pytest`). CI runs them on every push and pull request, together with `./brain freshness`, `./brain check --severity error`, `./brain upstream-check --verify` (vendored files unedited), `./brain commands --check` and `./brain scaffold-sync --check`.
 
-New brains start from `.company-brain/scaffold/`. After editing `System/`, `Templates/`, `CLAUDE.md`, or `Home.md` here, run `./brain scaffold-sync` so new brains get the change (`./brain scaffold-sync --check` only reports drift). On macOS, `./brain scaffold-sync --watch` does this automatically in the background (launchd agent; `--unwatch` removes it).
+After adding or editing a skill, run `./brain commands` to regenerate its slash command (`--check` only reports drift). To take in what obsidian-second-brain added or changed, run `/upstream-sync` in Claude Code (maintainers; it follows `.company-brain/references/upstream-sync.md`). New brains start from `.company-brain/scaffold/`. After editing `System/`, `Templates/`, `CLAUDE.md`, `Home.md`, or the slash commands here, run `./brain scaffold-sync` so new brains get the change (`./brain scaffold-sync --check` only reports drift). On macOS, `./brain scaffold-sync --watch` does this automatically in the background (launchd agent; `--unwatch` removes it).
 
 To pick up improvements from obsidian-second-brain, run `./brain upstream-check`. It fetches the original repo and lists which of the files Company Brain borrowed (see `THIRD_PARTY_NOTICES.md`) changed since the commit recorded in `.company-brain/upstream.json`. `--diff` shows the changes, `--copy` takes the files we keep unchanged as they are, and after porting the adapted ones by hand `--mark` records the new commit; commit the result.
 

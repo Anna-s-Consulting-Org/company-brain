@@ -1,6 +1,7 @@
 ---
 name: promote
 description: Share a personal note with the team or company - builds a sanitized copy (no Private sections, no links to personal notes, no personal-only fields), shows the diff, writes it in the target layer, and links back up from the personal note; also promotes team notes to the company layer. Use for "share this with the team", "publish this", "promote to company", "make this a team note".
+argument-hint: "<note> [team | company]"
 ---
 
 # Promote
