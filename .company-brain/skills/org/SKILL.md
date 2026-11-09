@@ -1,6 +1,6 @@
 ---
 name: org
-description: Manage people and the organization in the brain - shared profiles (role, team, manager, what they care about, how to work with them, with bi-temporal history), who works on which project (detected in connected systems such as Linear, Jira, GitHub, Asana, Notion and recorded when the match is confident), my personal stakeholder notes (relationship, influence, interest, open asks, follow-ups), team spaces, and the generated org chart. Use for "add a person", "X moved to team Y", "who works on X", "what is Jane working on", "track Jane as a stakeholder", "prep me for working with Jane", "stakeholder map", "who reports to", "org chart", "who is on the platform team".
+description: Manage people and the organization in the brain - shared profiles (role, team, manager, contact, with bi-temporal history), who works on which project (detected in connected systems such as Linear, Jira, GitHub, Asana, Notion and recorded when the match is confident), my personal stakeholder notes (what they care about, how we can help each other, how to work with them, relationship, influence, interest, open asks, follow-ups), team spaces, and the generated org chart. Use for "add a person", "X moved to team Y", "who works on X", "what is Jane working on", "track Jane as a stakeholder", "prep me for working with Jane", "stakeholder map", "who reports to", "org chart", "who is on the platform team".
 argument-hint: "[add person | new team | X moved to Y | who works on X | track <person> as a stakeholder]"
 ---
 
@@ -23,10 +23,10 @@ argument-hint: "[add person | new team | X moved to Y | who works on X | track <
 ## Modes
 - **add person**: `brain person add "<Full Name>" --role "<Role>" --team "<Team>" --manager "<Manager>" [--email <work email>] [--handle github:jdoe] [--alias "Jen"]`. Ask for anything missing; unknowns stay TBD. Email and handles (`system:id`) are what matches in connected systems rely on: fill them when the user or the company directory gives them.
 - **change role, team, or manager**: never overwrite history. Update the current `role:`, `team:`, or `manager:` and append to `timeline:` (close the old fact with `until: <date>`, add the new one with `from:` and `learned: <today>`).
-- **what they care about, how to work with them** (shared profile sections): only what the person stated, or said in a shared setting (an all-hands, a team channel, a published doc, a shared meeting), one line each with the source and date, for example `- Reliability over speed this quarter (stated in [[YYYY-MM-DD - Platform sync]], YYYY-MM)`. Impressions, guesses, and anything from a 1:1, a DM, or an email go to my stakeholder note instead.
+- **stakeholder management stays personal**: what they care about, how we can help each other, how to work with them, open asks, and relationship, influence, interest, last interaction, follow-up go only in my stakeholder note, even when the person said it in public. A shared profile never carries them: `brain check` and the write hook treat those sections and fields on a profile as an error.
 - **stakeholder**: `brain new stakeholder --title "<Full Name>"` (always personal; `person:` links the shared profile when one exists, else holds the plain name, for example a customer or partner). Fill What they care about, How we can help each other, How to work with them, and Open asks from the conversation. Set `relationship` (weak, medium, strong), `influence` and `interest` (high, medium, low) only when the user says or confirms them; `follow_up:` when a next step is agreed; `last_interaction:` from the latest meeting, 1:1, or message.
 - **stakeholder map**: read `Personal/Stakeholders/`: follow-ups due, high-influence people with no interaction in 30 days, and the approach by influence and interest (manage closely, keep satisfied, keep informed, monitor).
-- **prep for working with someone**: their shared profile (What they care about, How to work with them, Works on), my stakeholder note (How we can help each other, Open asks), and the last meeting or 1:1. Propose what to bring and what to ask; write nothing unless the user wants it.
+- **prep for working with someone**: their shared profile (role, team, Works on), my stakeholder note (What they care about, How we can help each other, How to work with them, Open asks), and the last meeting or 1:1. Propose what to bring and what to ask; write nothing unless the user wants it.
 - **who works on what**: detect and record (next section); show with `brain refresh`, then the profile's `## Works on` or the map on `Organization.md`.
 - **upgrade profiles** after the profile template changed: `brain person upgrade` is a dry run that lists the fields and sections each profile lacks; `brain person upgrade --yes` once the user approves, then `brain refresh`. It adds; it never rewrites what a profile already says.
 - **add team**: `brain team add "<Team>" --lead "<Lead>"`, then fill the charter mission (ask), `parent:` (department), rituals, and Slack channel.
@@ -71,7 +71,7 @@ If the user asks to fill profiles from a directory and a connector is available 
 
 ## Rules
 - A profile is shared. Impressions, feedback, relationship judgments, and 1:1 content go to `Personal/Stakeholders/` (this skill) or `Personal/1-1s/` (the `meeting` skill).
-- Stakeholder notes stay personal: `brain promote` refuses them. A fact the person stated in a shared setting can be added to their profile, with its source; the note itself never moves.
+- Stakeholder notes stay personal: `brain promote` refuses them, and nothing from them is copied to a profile. Only role, team, manager, contact, and work facts belong on a profile.
 - Leavers: set `status: left`, close the timeline fact, end their open `works_on:` entries (`--ended`), keep the note (history stays traversable).
 - `brain refresh` after every change (org chart, profile Works on blocks, the Organization map).
 

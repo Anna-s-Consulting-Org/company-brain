@@ -103,9 +103,9 @@ works_on:                  # written by `brain person works-on`, append-only his
     learned: YYYY-MM-DD    # when the brain first recorded it
     checked: YYYY-MM-DD    # when a source last confirmed it
 ```
-Body sections: `## Role and responsibilities`, `## What they care about` and `## How to work with them` (only what the person stated, or said in a shared setting, each line with source and date), `## Works on` (a generated `works-on` block, see below), `## Reports`, `## Shared meetings`, `## My notes on them` (a Dataview query over the reader's own Personal/ notes, so each reader sees only their own).
+Body sections: `## Role and responsibilities`, `## Works on` (a generated `works-on` block, see below), `## Reports`, `## Shared meetings`, `## My notes on them` (a Dataview query over the reader's own Personal/ notes, so each reader sees only their own; the shared file holds the query, never the notes).
 
-A shared profile holds only facts the person would be comfortable seeing on the company intranet. Impressions, relationship judgments, feedback, and 1:1 content belong in `Personal/Stakeholders/` and `Personal/1-1s/`.
+A shared profile holds only facts the person would be comfortable seeing on the company intranet. Stakeholder management (what they care about, how we can help each other, how to work with them, open asks, relationship, influence, interest, last interaction, follow-up), impressions, feedback, and 1:1 content belong in `Personal/Stakeholders/` and `Personal/1-1s/`. `brain check` and the layer guard report any of those sections or fields on a profile as an error.
 
 `## Works on` is rebuilt by `brain refresh` from shared notes only: project `owner:`, optional `contributors:` and `stakeholders:` lists, the project's `## People` table, objective owners, key result `[owner:: ]` fields, and the profile's `works_on:` entries. One role per person per project is open at a time: a stronger role closes the open entry, a weaker signal never downgrades it (`--replace` does, when the role really changed), and `--ended` closes it. Entries are never deleted.
 

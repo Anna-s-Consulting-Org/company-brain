@@ -1482,8 +1482,8 @@ NOT_PROMOTABLE = {
     "me": "the identity record stays in Personal/",
     "daily": "daily notes are not shared; promote the meeting, decision, or knowledge note that came out of the day",
     "one-on-one": "1:1 notes stay in Personal/; promote a decision or meeting note instead",
-    "stakeholder": "stakeholder notes are my view of a person and stay in Personal/; add facts the person stated, "
-                   "at intranet level, to their shared profile with the org skill",
+    "stakeholder": "stakeholder notes are my view of a person and stay in Personal/; only role, team, manager, "
+                   "contact, and work facts belong on the shared profile (the org skill)",
     "objective": "a personal goal becomes a team objective through the okr skill, with the team lead",
     "person": "people profiles already live in Company/Org/People",
 }
@@ -2110,6 +2110,21 @@ def _ref_key(ref) -> str:
     return _norm(link_target(ref) if "[[" in str(ref) else ref)
 
 
+# Stakeholder management is my view of a person and stays in Personal/Stakeholders/; a shared profile
+# carrying any of it is an error in brain check and the layer guard
+STAKEHOLDER_FIELDS = ("relationship", "influence", "interest", "last_interaction", "follow_up")
+STAKEHOLDER_SECTIONS = ("what they care about", "how we can help each other", "how to work with them", "open asks")
+
+
+def stakeholder_leaks(n: Note) -> list:
+    """Stakeholder fields and sections found in a shared person profile."""
+    if n.folder_layer not in ("company", "team") or not (n.type == "person" or n.rel.startswith(PEOPLE_DIR)):
+        return []
+    found = [f"`{k}:`" for k in STAKEHOLDER_FIELDS if k in n.fm]
+    found += [f"`## {t}`" for _, lvl, t in _headings(n.body.split("\n")) if lvl == 2 and t.lower() in STAKEHOLDER_SECTIONS]
+    return found
+
+
 def profiles(notes) -> list:
     return sorted([n for n in notes if n.type == "person" and n.rel.startswith(PEOPLE_DIR)], key=lambda n: n.name)
 
@@ -2476,6 +2491,10 @@ def check(root: Path, notes=None) -> list:
             add("error", n, "shared note contains a `## Private` section (move it to Personal/)")
         if shared and n.type in PERSONAL_ONLY_TYPES:
             add("error", n, f"`type: {n.type}` notes are personal; move this note to Personal/")
+        leaks = stakeholder_leaks(n)
+        if leaks:
+            add("error", n, "stakeholder content on a shared profile (" + ", ".join(leaks) + "): move it to "
+                            f"Personal/Stakeholders/Stakeholder - {n.name}.md, which is never shared")
         for target, anchor, embed in n.links():
             if re.search(r"\.(?!md$)[A-Za-z0-9]{2,6}$", target):
                 continue  # canvas, image, pdf: not a note

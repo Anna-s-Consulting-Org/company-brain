@@ -66,6 +66,10 @@ def main() -> None:
         problems.append("frontmatter says `layer: personal` but the note is in a shared folder")
     if re.search(r"^## Private\s*$", note.body, re.M):
         problems.append("it contains a `## Private` section; private content must stay in Personal/")
+    leaks = brain.stakeholder_leaks(note)
+    if leaks:
+        problems.append("it is a shared profile carrying stakeholder content (" + ", ".join(leaks)
+                        + "); that belongs in Personal/Stakeholders/Stakeholder - " + note.name + ".md")
     personal = stems(root / "Personal")
     shared = stems(root, exclude_top="Personal")
     leaked = sorted({t for t, _, _ in note.links()

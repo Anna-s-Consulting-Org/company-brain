@@ -1,9 +1,10 @@
 """People: shared profiles, personal stakeholder notes, and who works on what.
 
-Profiles carry the person sections obsidian-second-brain's person template had (what they care about,
-how to work together), split by layer: what the person stated goes on the shared profile, my view of
-them goes in a personal stakeholder note. Work is recorded from notes and, through
-`brain person works-on`, from connected systems when the match is confident.
+The person sections obsidian-second-brain's person template had (what they care about, how to help
+each other) are stakeholder management, so they live only in a personal stakeholder note; shared
+profiles keep intranet facts, and brain check and the write hook refuse stakeholder content on them.
+Work is recorded from notes and, through `brain person works-on`, from connected systems when the
+match is confident.
 """
 from __future__ import annotations
 
@@ -75,11 +76,14 @@ def works_on(root: Path, person: str, project: str, *extra: str, role: str = "co
 
 # --- what a profile records ------------------------------------------------------------------------
 
-def test_profile_template_carries_the_upstream_person_sections_split_by_layer():
+def test_stakeholder_sections_live_only_in_the_personal_note():
     person = (BRAIN / "Templates" / "Person Template.md").read_text(encoding="utf-8")
-    for heading in ("## What they care about", "## How to work with them", "## Works on", "## Shared meetings",
-                    "## My notes on them"):
+    for heading in ("## Works on", "## Shared meetings", "## My notes on them"):
         assert heading in person
+    for section in engine.STAKEHOLDER_SECTIONS:
+        assert f"## {section}" not in person.lower(), section
+    for key in engine.STAKEHOLDER_FIELDS:
+        assert not re.search(rf"^{key}:", person, re.M), key
     for key in ("email:", "aliases:", "handles:", "works_on: []"):
         assert re.search(rf"^{re.escape(key)}", person, re.M), key
     assert "<!-- brain:auto:start works-on -->" in person
@@ -237,12 +241,12 @@ def test_upgrade_adds_what_profiles_lack_and_only_on_yes(brain):
                       "# Old Timer\n\n## For future agent\nOld.\n\n## Role and responsibilities\n- Builds things\n", encoding="utf-8")
     before = legacy.read_text(encoding="utf-8")
     out = ok(brain, "person", "upgrade", "Old Timer")
-    assert "Would upgrade 1 of 1" in out and "## What they care about" in out
+    assert "Would upgrade 1 of 1" in out and "## Shared meetings" in out
     assert legacy.read_text(encoding="utf-8") == before
     ok(brain, "person", "upgrade", "--yes")
     text = legacy.read_text(encoding="utf-8")
     assert "- Builds things" in text and "role: Engineer" in text
-    assert text.index("## Role and responsibilities") < text.index("## What they care about") < text.index("## Works on")
+    assert text.index("## Role and responsibilities") < text.index("## Works on") < text.index("## Shared meetings")
     assert fm(legacy)["works_on"] == [] and fm(legacy)["email"] == "TBD"
     assert "Would upgrade 0" in ok(brain, "person", "upgrade")  # idempotent
 
@@ -352,7 +356,7 @@ def test_brains_with_older_templates_still_work(brain):
     (brain / "Templates" / "Stakeholder Template.md").unlink()  # set up before the template existed
     ok(brain, "new", "stakeholder", "--title", "Sam Lee")  # falls back to the engine's copy
     old = brain / "Templates" / "Person Template.md"
-    old.write_text(old.read_text(encoding="utf-8").split("## What they care about")[0], encoding="utf-8")
+    old.write_text(old.read_text(encoding="utf-8").split("## Shared meetings")[0], encoding="utf-8")
     assert "warning: Templates/Person Template.md lacks the engine's sections" in ok(brain, "person", "upgrade")
 
 
@@ -371,3 +375,29 @@ def test_upgrade_keeps_the_profile_spacing(brain):
                       encoding="utf-8")
     ok(brain, "person", "upgrade", "--yes")
     assert "```\na\n\n\n\nb\n```" in legacy.read_text(encoding="utf-8")
+
+
+# --- stakeholder management never reaches a shared profile ----------------------------------------
+
+def test_check_and_write_hook_refuse_stakeholder_content_on_a_profile(brain):
+    sam = brain / SAM
+    sam.write_text(sam.read_text(encoding="utf-8").replace("works_on: []", "works_on: []\nrelationship: strong")
+                   .replace("## Reports", "## How we can help each other\n- I unblock hiring\n\n## Reports"), encoding="utf-8")
+    issues = json.loads(cli(brain, "--json", "check").stdout)
+    errors = [i["message"] for i in issues if i["path"] == SAM.as_posix() and i["severity"] == "error"]
+    assert any("`relationship:`" in m and "`## How we can help each other`" in m for m in errors), errors
+    assert cli(brain, "check", "--severity", "error").returncode == 1
+    event = json.dumps({"tool_input": {"file_path": str(sam)}})
+    hook = subprocess.run([sys.executable, str(brain / ".company-brain" / "hooks" / "layer_guard.py")], input=event,
+                          capture_output=True, text=True)
+    assert '"decision": "block"' in hook.stdout and "Personal/Stakeholders/Stakeholder - Sam Lee.md" in hook.stdout
+
+
+def test_stakeholder_notes_are_never_shared(brain):
+    ok(brain, "new", "stakeholder", "--title", "Sam Lee")
+    note = "Personal/Stakeholders/Stakeholder - Sam Lee.md"
+    ignored = subprocess.run(["git", "check-ignore", "--no-index", "-q", note], cwd=BRAIN)
+    assert ignored.returncode == 0  # the repo's .gitignore keeps all of Personal/ out of git
+    ok(brain, "refresh")
+    shared = "\n".join(p.read_text(encoding="utf-8") for p in (brain / "Company").rglob("*.md"))
+    assert "Stakeholder - Sam Lee" not in shared  # no shared note links or names it
