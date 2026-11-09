@@ -168,3 +168,54 @@ def test_refresh_output_is_freshness_and_layer_clean(brain):
     assert cli(brain, "check", "--severity", "error").returncode == 0
     again = ok(brain, "refresh")  # idempotent: the second run rewrites nothing
     assert "unchanged Company/Org/People Directory.md" in again and "unchanged Company/Org/People.base" in again
+
+
+# --- review fixes -----------------------------------------------------------------------------------
+
+def test_git_guard_catches_contact_and_customer_names(brain):
+    flagged = lambda: " ".join(w for _, w in engine.scan_added_line(  # noqa: E731
+        "- Example: Jane Smith at Globex asked for SSO; Sam Lee owns it.", engine.content_markers(brain)))
+    text = flagged()
+    assert "'Jane Smith'" in text and "'Globex'" in text and "'Sam Lee'" in text
+    cfg = brain / "brain.yaml"
+    cfg.write_text(cfg.read_text(encoding="utf-8").replace("public_names: []", "public_names: [Globex]"), encoding="utf-8")
+    assert "'Globex'" not in flagged() and "'Jane Smith'" in flagged()  # public on purpose: allowed
+
+
+def test_a_contact_that_cannot_be_created_leaves_no_org_page(brain):
+    r = cli(brain, "person", "add", "Sam Lee", "--company", "Hooli")  # Sam Lee is a colleague
+    assert r.returncode != 0 and "already has the name 'Sam Lee'" in r.stderr
+    assert not (brain / "Company/Org/Companies/Hooli.md").exists()
+    assert ok(brain, "person", "add", "Jane Smith", "--company", "Globex").startswith("exists Company/Org/Contacts/Jane Smith.md")
+
+
+def test_org_pages_refuse_stakeholder_content_about_a_person(brain):
+    globex = brain / "Company/Org/Companies/Globex.md"
+    base = globex.read_text(encoding="utf-8")
+    errors = lambda: [i["message"] for i in json.loads(cli(brain, "--json", "check").stdout)  # noqa: E731
+                      if i["path"] == "Company/Org/Companies/Globex.md" and i["severity"] == "error"]
+    globex.write_text(base + "\n## How we can help each other\n- [[Jane Smith]] wants a promotion\n", encoding="utf-8")
+    assert any("names a person (jane smith)" in m for m in errors())
+    globex.write_text(base + "\n## What they care about\n- Sam Lee promised them a discount\n", encoding="utf-8")
+    assert any("names a person (sam lee)" in m for m in errors())
+    globex.write_text(base + "\n## Notes\n- Relationship strength: strong\n", encoding="utf-8")
+    assert any("relationship strength" in m for m in errors())
+    globex.write_text(base + "\n## How we can help each other\n- Joint launches, shared support\n", encoding="utf-8")
+    assert errors() == []  # what the two organisations do for each other is a business fact
+
+
+def test_check_warns_when_a_kept_people_base_falls_behind(brain):
+    base = brain / BASE
+    original = base.read_text(encoding="utf-8")
+    drift = lambda: any("People.base was changed in Obsidian" in i["message"]  # noqa: E731
+                        for i in json.loads(cli(brain, "--json", "check").stdout))
+    base.write_text(original.replace("role: 150", "role: 240"), encoding="utf-8")  # a view setting only
+    assert not drift()
+    base.write_text(original.replace("  organization: 'if(company, company, \"Acme\")'\n", ""), encoding="utf-8")
+    assert drift()  # kept, and missing a formula the overlay builds
+
+
+def test_person_add_messages_say_what_happened(brain):
+    assert "(kind TBD)" in ok(brain, "person", "add", "Max Mo", "--company", "Hooli")
+    out = ok(brain, "person", "add", "Tom Ops", "--company", "Acme", "--owner", "Ana Lopez")
+    assert out.startswith("created Company/Org/People/Tom Ops.md") and "--owner apply to contacts" in out
