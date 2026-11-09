@@ -28,7 +28,7 @@ It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian
 
 | Surface | Read | Write | Notes |
 |---|---|---|---|
-| Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 31 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:checkin`, `:reconcile`, `:prioritize`, `:roadmap`, `:meeting`, `:save`, `:find`, and more |
+| Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 32 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:checkin`, `:reconcile`, `:prioritize`, `:roadmap`, `:meeting`, `:save`, `:find`, and more |
 | Claude Code opened in this folder without the plugin (for example a claude.ai cloud session where company-brain is not an account or organization plugin) | yes | yes | the same `/company-brain:<name>` commands from `.claude/commands/company-brain/`; the session-start context and the after-write checks (AI-first, layer leaks, freshness) need the plugin, and only the guard on vendored files runs without it |
 | Claude Desktop chat | yes | yes | through the brain MCP server (see `System/Setup.md`) |
 | claude.ai Project | yes | no | read-only pack made by `/company-brain:export` (company and team layers only) |
@@ -37,13 +37,22 @@ Why plugin-first: a Claude Project can't read local files, run hooks or automate
 
 ## Multiplayer layers
 
-- `Company/` and `Teams/<Team>/` are shared and committed to git.
-- `Personal/` is yours. It's gitignored and never leaves your machine.
+- `Company/` and `Teams/<Team>/` are shared through a Google Shared Drive or another shared folder (`./brain share`), never through git.
+- `Personal/` is yours. It never leaves your machine.
 - Links go **up** the stack, never down. A hook and `brain check` stop shared notes from linking to personal ones.
 - Moving content up is always deliberate (`/company-brain:promote`): private sections are stripped, you see a diff, and it's written only after you say yes.
-- Each person's weekly update is its own file, so git merges never conflict.
+- Each person's weekly update is its own file, so two people never edit the same file.
 
 Details: `System/Layers and privacy.md` (human) and `.company-brain/references/layers.md` (spec).
+
+## Content and system travel separately
+
+| | Content | System |
+|---|---|---|
+| What | notes about the company, its people, teams, meetings, goals and decisions (`Company/`, `Teams/`, `Personal/`) and the company's settings (`Company/company.yaml`) | the engine, skills, templates, commands, `System/` docs, `CLAUDE.md`, `brain.yaml` |
+| Travels through | a Google Shared Drive or other shared folder; `Personal/` stays local | git (this repository, or your fork) |
+
+Git never carries content. `.gitignore` leaves it out, `./brain init` installs a pre-commit guard that refuses any commit holding content (or naming a person, the company or a company note in a system file), and CI runs `./brain git check --tracked`. So this repository holds placeholders only: `./brain init` creates `Company/` and `Teams/` on your machine from `.company-brain/scaffold/`. To contribute an improvement, use `/company-brain:contribute` or `./brain git stage`. Details: `System/Sharing models.md`.
 
 ## How it fits together
 
@@ -59,14 +68,14 @@ The top diagram shows how inputs, the Claude plugin and the three layers connect
    claude plugin marketplace add "/path/to/Company Brain"
    claude plugin install company-brain@company-brain
    ```
-   Restart, open Claude in this folder, and run `/company-brain:setup`.
+   Restart, open Claude in this folder, and run `/company-brain:setup`. It creates your `Company/`, `Teams/` and `Personal/` folders and, when you are ready, shares `Company/` and `Teams/` through a Shared Drive or shared folder.
    Without the plugin, Claude Code opened in this folder still has every skill under the same name (`/company-brain:setup`, `/company-brain:daily`, ...), from the project commands in `.claude/commands/company-brain/`.
 3. **Sources**: `/company-brain:connect` mounts Desktop or Google Drive folders under `Sources/` (read-only symlinks).
 4. **Rhythm**: `/company-brain:daily` each morning, `/company-brain:weekly` on Fridays, `/company-brain:plan quarterly` each quarter.
 
-The `./brain` CLI works without Claude: `./brain period`, `./brain new objective --title ...`, `./brain promote <note> --to team`, `./brain refresh`, `./brain check`, `./brain freshness`, `./brain search`, `./brain export-pack`. Requirements: `python3` (the stock macOS one works), plus `uv` for the MCP server.
+The `./brain` CLI works without Claude: `./brain period`, `./brain new objective --title ...`, `./brain promote <note> --to team`, `./brain refresh`, `./brain check`, `./brain freshness`, `./brain search`, `./brain share`, `./brain git status`, `./brain git stage`, `./brain export-pack`. Requirements: `python3` (the stock macOS one works), plus `uv` for the MCP server.
 
-Tests: `python3 -m pytest .company-brain/tests` (needs `pytest`). CI runs them on every push and pull request, together with `./brain freshness`, `./brain check --severity error`, `./brain upstream-check --verify` (vendored files unedited), `./brain commands --check` and `./brain scaffold-sync --check`.
+Tests: `python3 -m pytest .company-brain/tests` (needs `pytest`). CI runs them on every push and pull request, together with `./brain git check --tracked` (no content in git), `./brain freshness`, `./brain check --severity error`, `./brain upstream-check --verify` (vendored files unedited), `./brain commands --check` and `./brain scaffold-sync --check`.
 
 After adding or editing a skill, run `./brain commands` to regenerate its slash command (`--check` only reports drift). To take in what obsidian-second-brain added or changed, run `/upstream-sync` in Claude Code (maintainers; it follows `.company-brain/references/upstream-sync.md`). New brains start from `.company-brain/scaffold/`. After editing `System/`, `Templates/`, `CLAUDE.md`, `Home.md`, or the slash commands here, run `./brain scaffold-sync` so new brains get the change (`./brain scaffold-sync --check` only reports drift). On macOS, `./brain scaffold-sync --watch` does this automatically in the background (launchd agent; `--unwatch` removes it).
 
@@ -80,10 +89,11 @@ To pick up improvements from obsidian-second-brain, run `./brain upstream-check`
 
 ```
 Company Brain/
-├── Home.md, CLAUDE.md, README.md, brain.yaml, brain (CLI)
-├── Company/          company layer (shared)
-├── Teams/<Team>/     team layer (shared, team-owned)
-├── Personal/         personal layer (local only, gitignored)
+├── Home.md, CLAUDE.md, README.md, brain.yaml (system settings), brain (CLI)
+├── brain.local.yaml  this machine's sharing setup (local, not in git)
+├── Company/          company layer: shared folder, not in git (company.yaml holds the company's settings)
+├── Teams/<Team>/     team layer: shared folder, team-owned, not in git
+├── Personal/         personal layer (local only, not in git)
 ├── Sources/          symlinked Desktop and Google Drive folders (local, read-only)
 ├── System/           how it works, frameworks, skills, automations, setup
 ├── Templates/        Templater templates (also used by the CLI)

@@ -9,149 +9,123 @@ layer: company
 # Sharing models
 
 ## For future agent
-This note explains what actually happens when a brain uses each sharing model in `brain.yaml` (`git`, `drive`, `local`): what setup does, what happens after a write, what travels to teammates and what does not. It describes the engine as built, including the parts of `drive` mode that are manual, so read it before recommending a model or setting one up. The rules themselves live in [[Layers and privacy]] and `.company-brain/references/layers.md`; if this note and the code ever disagree, check `.company-brain/scripts/brain.py` and the skills, then update this note.
+This note explains how a brain reaches other people. There are two channels that never mix: content (`Company/`, `Teams/`) goes through a shared folder, chosen with `sharing.model` (`drive`, `folder`, `local`); the system (engine, skills, templates, docs) goes through git. It describes the engine as built: what `brain share` and `brain git` do, what the git guard refuses, how an older brain that shared notes through git moves over, and what is still manual. The rules themselves live in [[Layers and privacy]] and `.company-brain/references/layers.md`; if this note and the code ever disagree, check `.company-brain/scripts/brain.py` and the skills, then update this note.
 
 ## In one paragraph
-The sharing model is one setting, `sharing.model` in `brain.yaml`, chosen in `/company-brain:setup` or with `brain init --sharing <git|drive|local>`. Changing it changes how the skills finish a write (suggest a commit, or just save); it does not move any files. `git` is the default and the recommended model: notes, skills, templates and the engine travel together, with review for company changes and CI checks. `drive` lets people without git share notes through Google Shared Drive, but only `Company/` and `Teams/<Team>/` travel, and the folders are moved and linked by hand. `local` shares nothing. In every model, `Personal/` stays on the owner's machine.
+A brain holds two kinds of files. **Content** is what the company writes into it: people, teams, meetings, goals, decisions, and `Company/company.yaml` with the company's name and settings. `Company/` and `Teams/` reach teammates through a Google Shared Drive (`drive`) or any other shared folder (`folder`), linked in by `brain share`; with `local` they stay on this machine. `Personal/` never leaves the machine in any model. The **system** is what makes every brain work: the `.company-brain/` engine and skills, `Templates/`, `System/`, `CLAUDE.md`, `Home.md` and the settings in `brain.yaml`. It travels through git, for example a GitHub repository, so improvements are versioned and reviewed. Git never carries content: `.gitignore` leaves it out, a pre-commit guard refuses it, and CI checks every tracked file.
 
-## What happens in each model
+## The two channels
+
+| | Content | System |
+|---|---|---|
+| What | `Company/`, `Teams/` (every note about the company, its people, teams, meetings, goals, decisions), `Company/company.yaml`; on this machine only: `Personal/`, `Sources/`, `Exports/`, `index.md`, `log.md`, `brain.local.yaml`, `.checkin.json` | `.company-brain/` (skills, CLI, hooks, MCP server, specs, scaffold), `System/`, `Templates/`, `CLAUDE.md`, `Home.md`, `README.md`, `brain.yaml`, `.gitignore`, `.claude/`, `.claude-plugin/`, `.github/`, `.obsidian/` settings |
+| Travels through | the shared folder (`sharing.model`); `Personal/` and local files go nowhere | git |
+| How fast | as soon as the folder syncs | when someone commits, pushes and the others pull |
+| Review | none: limit who can edit the company folder | pull requests and CI |
+| Set up with | `brain share --to <folder>` | `brain init` installs the guard; commits with `/company-brain:contribute` or `brain git stage` |
+| Settings | `Company/company.yaml` (shared), `brain.local.yaml` (this machine) | `brain.yaml` |
 
 ```mermaid
-flowchart TD
-    S["Choose a sharing model during setup"] --> M{"sharing.model in brain.yaml"}
+flowchart LR
+    subgraph Brain["Brain folder on your machine"]
+        C["Company/ and Teams/ (links)"]
+        P["Personal/"]
+        S["Engine, skills, templates, System/, CLAUDE.md"]
+    end
+    C -->|syncs| D["Shared Drive or shared folder"]
+    D -->|syncs| T1["Teammates' Company/ and Teams/"]
+    S -->|commit and push| G["Git repository, e.g. GitHub"]
+    G -->|pull or plugin update| T2["Teammates' engine and skills"]
+    C -.->|blocked by .gitignore, the pre-commit guard and CI| G
+    P -.->|blocked too: Personal/ never leaves this machine| G
 
-    M -->|git| G1["Setup shows the git remote and first commit commands, it never runs them"]
-    G1 --> G2["A skill writes a shared note"]
-    G2 --> G3["Claude lists the changed shared files and suggests a commit, or a pull request for the company layer"]
-    G3 --> G4["You commit and push"]
-    G4 --> G5["CI runs tests, brain check, freshness and upstream-check"]
-    G5 --> G6["Teammates pull: notes, skills, templates and engine arrive together"]
-
-    M -->|drive| D1["Setup explains the recipe. You move Company/ and Teams/Team/ into a Shared Drive and put symlinks in their place"]
-    D1 --> D2["A skill writes a shared note"]
-    D2 --> D3["Saved. No commit is suggested"]
-    D3 --> D4["Drive for Desktop syncs the file"]
-    D4 --> D5["Teammates see the note in near real time. No review, no CI"]
-    D5 --> D6["System/, Templates/, CLAUDE.md, brain.yaml and the engine do not travel: share them another way"]
-
-    M -->|local| L1["Nothing to set up"]
-    L1 --> L2["A skill writes a note"]
-    L2 --> L3["Saved on this machine only"]
-    L3 --> L4["Later: run setup again, or brain init --sharing git or drive"]
-
-    P["Every model: Personal/ is local only and never synced"]
-
-    classDef git fill:#dbeafe,stroke:#1d4ed8,color:#0f172a
-    classDef drive fill:#dcfce7,stroke:#15803d,color:#0f172a
-    classDef local fill:#f1f5f9,stroke:#475569,color:#0f172a
+    classDef content fill:#dcfce7,stroke:#15803d,color:#0f172a
+    classDef system fill:#dbeafe,stroke:#1d4ed8,color:#0f172a
     classDef personal fill:#ffedd5,stroke:#c2410c,color:#0f172a
-    class G1,G2,G3,G4,G5,G6 git
-    class D1,D2,D3,D4,D5,D6 drive
-    class L1,L2,L3,L4 local
+    class C,D,T1 content
+    class S,G,T2 system
     class P personal
 ```
 
-## What `drive` mode does today
+## Content: the sharing models
 
-### What exists
-- `/company-brain:setup` offers `git`, `drive` and `local`, and `brain init --sharing drive` writes the choice to `brain.yaml`.
-- The engine reads notes through symlinked folders (`iter_md` in `.company-brain/scripts/brain.py`, `_walk_md` in `.company-brain/mcp/vault/vault_ops.py`). So `brain refresh`, `brain check` and `brain search` work when `Company/` and `Teams/<Team>/` are links into Drive.
-- With `drive` set, the skills stop suggesting commits and pull requests and just save.
+| | drive | folder | local |
+|---|---|---|---|
+| Where `Company/` and `Teams/` live | a folder in a Google Shared Drive, synced by Drive for Desktop | any folder everyone syncs or mounts: OneDrive, Dropbox, iCloud, a network share | on this machine |
+| Who can use it | anyone with Drive for Desktop | anyone with that service | one person |
+| How fast teammates see changes | near real time | as fast as the service syncs | never |
+| Permissions | per Drive folder | per the service | not shared |
+| History | per file, limited | per the service | your own backups |
+| Two people editing one file | separate conflict copies, not detected yet | the same | not possible |
 
-### What is manual
-- Creating the Shared Drive folders, moving `Company/` and each `Teams/<Team>/` into them, and replacing the local folders with symlinks. The setup skill explains this (step 7) but nothing in the CLI does it.
-- Getting everything else to each teammate: `System/`, `Templates/`, `CLAUDE.md`, `Home.md`, `brain.yaml` and the `.company-brain/` engine. Drive mode does not share them and the docs do not say how they should travel. In practice teammates still clone the repository or copy the folder, and an improved skill reaches them only when they get a fresh copy.
+The model is set per machine in `brain.local.yaml`, by `brain share` (or `brain init --sharing local`). Changing it moves nothing by itself.
 
-So `drive` mode in practice is a hybrid: git (or a copied folder) for the engine, Drive for the content.
+### Share for the first time
+Run from the brain folder. Pick a folder outside the brain: on macOS a Shared Drive folder is under `~/Library/CloudStorage/GoogleDrive-<account>/Shared drives/<Shared drive>/`.
+
+```bash
+./brain share --to "<shared folder>"
+./brain share --to "<shared folder>" --yes
+./brain check
+```
+
+The first command is a dry run. With `--yes`, `Company/` and `Teams/` move into the shared folder and are replaced by links, and `brain.local.yaml` records the model (`drive` inside Google Drive, otherwise `folder`) and the folder. `Personal/` is not touched. `./brain share` with no `--to` shows the current state.
+
+### A teammate joins
+1. Get the system: clone the git repository (or copy the brain folder without `Company/`, `Teams/` and `Personal/`) and install the plugin ([[Setup]]).
+2. Link the shared content before anything else, with their own path to the same shared folder: `./brain share --to "<shared folder>"`, then `--yes`. If they already have a local `Company/` or `Teams/` (for example from an earlier `brain init`), the shared copy wins and theirs moves to `.share-backup/`, with a count of files that differ, so nothing is lost and nothing is published by accident.
+3. Run `/company-brain:setup`, which creates only their `Personal/` layer and their shared profile, then `./brain connect --sync` for shared sources.
 
 ### Warnings
-- **Keep `Personal/` out of Drive.** If someone puts the whole brain folder in Drive instead of linking only the two shared folders, their personal layer syncs to everyone. Nothing checks for this.
-- **In the hybrid, remove `Company/` and `Teams/` from git before linking them.** Git does not follow a symlink: it stores the link itself, which is a folder path on your machine (for example `/Users/you/Library/CloudStorage/...`). If you commit it, every teammate who pulls gets a link to a path that does not exist on their computer, and the shared notes disappear for them. So do it once, before anyone links: untrack the two folders, ignore them, commit, and only then move them into Drive. See step 1 of the recipe below.
-- **Write the ignore lines without a trailing slash.** In `.gitignore`, `/Company/` matches only a real folder, and git does not treat a symlink as a folder, so the `Company` link would still show up as a new file to commit. Use `/Company` and `/Teams`.
-- **Each teammate makes their own links**, pointing at their own Drive folder (on macOS, `~/Library/CloudStorage/GoogleDrive-<account>/Shared drives/<Shared drive>/`). On Windows, creating symlinks needs Developer Mode or administrator rights.
-- **Checks only run on Claude's writes.** The write hooks (layer guard, AI-first check, freshness) run when Claude writes. Edits made in Obsidian or the Drive web app are not checked until someone runs `brain check`. Git mode has CI as the backstop; Drive mode has none.
-- **Conflicts are not detected.** When two people edit one file, or two people run `brain refresh` at the same time and both rewrite generated views, Drive may keep both versions as separate files. Nothing in `brain check` looks for them.
+- **Keep the brain folder itself out of synced folders.** Only `Company/` and `Teams/` belong in the shared folder. `brain share` refuses a target that contains the brain, and `brain check` reports `Personal/` inside the shared folder as an error and inside any cloud-synced folder as a warning.
+- **Each teammate makes their own links**, pointing at their own path to the shared folder. On Windows, creating links needs Developer Mode or administrator rights.
+- **No review for content.** A shared folder has no pull request. Skills show a diff and wait for a yes before changing a company note, but edits made in Obsidian or the Drive web app are only checked when someone runs `brain check`.
+- **Conflicts are not detected yet.** When two people edit one file at once, or both run `brain refresh`, the sync service may keep both versions as separate files. Per-person weekly files and generated views (rebuilt by `brain refresh`) keep this rare.
 
-### The manual recipe (macOS example)
-Run from the brain folder after reading the warnings above. `<account>`, `<Shared drive>` and `<Team>` are yours.
+## System: git
+Git carries the system only. A commit may hold the system paths listed above, plus any path in `git.allow` in `brain.yaml` (which can never add a content path). Everything else is refused.
 
-**1. Once, by one person: take the shared folders out of git.** The notes stay on your disk; git just stops tracking them. Commit and push this before anyone creates a link.
+### What the guard checks
+`brain init` installs a pre-commit hook in a git repository (or run `./brain git hook`). It runs `./brain git check --staged` and refuses the commit when the staged changes:
+- add or change anything in `Company/`, `Teams/`, `Personal/`, `Sources/`, `Exports/`, or the local files (`index.md`, `log.md`, `brain.local.yaml`, `.checkin.json`, Obsidian workspace files);
+- add a path that is not a system path;
+- put a content note (`type: meeting`, `person`, `objective`, `decision` and the like) in `System/` or at the root, or in `Templates/` without template syntax;
+- add lines to system files that contain the company's name, a person's full name from `Company/Org/People/`, a link to a company note, or a path into a real team's folder or to a content note.
 
-```bash
-git rm -r --cached Company Teams
-printf '/Company\n/Teams\n' >> .gitignore
-git add .gitignore
-git commit -m "Share Company and Teams through Google Drive, not git"
-```
+Deleting tracked content always passes: that is how content leaves git. CI runs `./brain git check --tracked`, which fails when any tracked file is not a system path, so content cannot arrive by a commit that skipped the hook.
 
-**2. The same person: move the folders into Drive and link them.**
-
-```bash
-DRIVE="$HOME/Library/CloudStorage/GoogleDrive-<account>/Shared drives/<Shared drive>"
-mv Company "$DRIVE/Company" && ln -s "$DRIVE/Company" Company
-mv "Teams/<Team>" "$DRIVE/<Team>" && ln -s "$DRIVE/<Team>" "Teams/<Team>"
-./brain init --sharing drive
-./brain check
-```
-
-Repeat the `Teams/<Team>` line for every team: step 1 stops tracking all of `Teams/`, so a team folder left out of Drive is no longer shared at all. `git status` should now show neither `Company` nor `Teams`. If it lists them, the ignore lines are wrong (see the trailing slash warning).
-
-**3. Each teammate.** Wait until the folders are in Drive, then pull the commit from step 1. The pull removes their local copies of `Company/` and `Teams/`, which is expected, because Drive now holds them. Then create the links to their own Drive path, without `mv`:
+### Committing a system change
+Ask Claude (`/company-brain:contribute`), or:
 
 ```bash
-DRIVE="$HOME/Library/CloudStorage/GoogleDrive-<account>/Shared drives/<Shared drive>"
-ln -s "$DRIVE/Company" Company
-mkdir -p Teams && ln -s "$DRIVE/<Team>" "Teams/<Team>"
-./brain check
+./brain git status
+./brain git stage
+git commit -m "<what changed in the system>"
 ```
 
-## Git, drive and local compared
+`brain git status` splits the changes by channel; `brain git stage` adds every changed system file and nothing else, then runs the guard. Avoid `git add -A`, `git add .` and `git commit -a` in the brain. Claude never pushes or opens a pull request on its own.
 
-| | git | drive | local |
-|---|---|---|---|
-| Who can use it | people comfortable with git or the Obsidian Git plugin | anyone with Drive for Desktop | one person |
-| How fast teammates see changes | when you push and they pull | near real time | never |
-| Review before company changes | pull requests, with branch protection | none | not needed |
-| Checks on edits made outside Claude | CI on every push | only when someone runs `brain check` | only when you run `brain check` |
-| Skills, templates and engine updates | travel with the notes | do not travel | not shared |
-| Permissions | the whole repository | per Drive folder | not shared |
-| History | every line, any change can be undone | per file, limited | your own backups |
-| Two people editing one file | git merge, usually clean thanks to per-person files | separate copies, not detected | not possible |
-| Setup | `brain init`, then the remote commands Claude shows you | manual moves and symlinks | nothing |
+### One engine for many brains
+Because git holds no content, the same repository can serve as the engine for every brain in a company, and improvements can flow back to the public Company Brain product as pull requests without exposing anything about the company.
 
-### Git: pros
-1. Company-layer changes go through a pull request, and branch protection can require it ([[Setup]], section 5).
-2. CI runs `brain check`, `brain freshness`, the tests and `upstream-check` on every push, so edits made outside Claude are still checked.
-3. Notes, skills, templates, `CLAUDE.md` and the engine are one versioned unit; a skill fix reaches teammates when they pull (they may also need to update the installed plugin).
-4. `.gitignore` keeps `Personal/`, `Sources/`, `Exports/` and `.checkin.json` out of every commit.
-5. Full history: who changed which line and when, and any change can be undone.
-6. Per-person weekly files and generated views rebuilt by `brain refresh` keep most merges clean.
-7. Nothing is shared until you commit and push, which matches promotion: shared on purpose.
-8. Teammates are offered the plugin from the repository when they trust the folder ([[Setup]], section 5).
+## Moving an older brain off git
+Older brains used a `git` sharing model that committed `Company/` and `Teams/`. It is retired. To move:
 
-### Git: cons
-1. Clone, commit, pull, push, pull requests and conflict resolution put off non-technical colleagues. The Obsidian Git plugin automates pull and push, but conflicts still reach the user.
-2. Not real time: one person who forgets to push leaves everyone working from an old brain.
-3. Claude never pushes, so every shared change waits for a person.
-4. Read access is all or nothing: whoever can read the repository can read every team folder.
-5. Everyone needs an account on the git host, which can mean per-person seats.
-6. Shared files that are not per person (a team board, one objective note) can still conflict.
-7. Google Docs stay outside the repository; the brain reads them as read-only pointers in every model.
+1. **One person shares the content first**, so teammates keep getting it: `./brain share --to "<shared folder>" --yes`.
+2. **Move the settings**: `./brain init`. It copies the company settings from `brain.yaml` into `Company/company.yaml`, sets `brain.local.yaml` (a `git` model becomes `local` until `brain share` runs), and leaves `brain.yaml` with system settings only.
+3. **Take content out of git**, keeping the files on disk: `./brain git untrack`, then `--yes`. It also adds any missing content lines to `.gitignore`.
+4. **Commit the result**: `./brain git stage`, then `git commit`. The commit removes content from git and passes the guard.
+5. **Each teammate**: before pulling that commit, link the shared folder with `./brain share --to "<their path>" --yes`. The pull then removes git's copy of the notes, which is expected because the shared folder holds them now.
 
-## Choosing
-- **Most writers can handle a pull request** (product, engineering, operations): use `git`. Review, CI and engine updates travelling with the notes are what keep the brain trustworthy.
-- **Mixed teams**: use the hybrid that `drive` mode implies. Git for `.company-brain/`, `System/`, `Templates/` and `CLAUDE.md`, kept by one or two people; Drive for `Company/` and `Teams/` so everyone can write. Follow every warning above.
-- **Trying it alone**: start with `local` and switch later. Switching changes the setting only; set up the remote or the Drive links yourself.
+Git history still holds the old notes. If the repository is or will be public, rewriting history is a separate decision that needs everyone's agreement.
 
-## Proposed improvements (not built)
-These would make `drive` a supported model rather than a recipe. They are proposals, not features:
-- A `brain share --drive` command that moves and links the shared folders, untracks them in git, and records the Drive paths in `brain.yaml` so teammates can recreate the links.
-- Sharing `System/`, `Templates/`, `CLAUDE.md` and `brain.yaml` through Drive too, or a documented way to update them.
-- `brain check` errors for `Personal/` inside a synced folder and for duplicate conflict copies.
-- A scheduled `brain check` to stand in for CI.
-- Drive detection on Windows, not only `~/Library/CloudStorage` on macOS.
+## Not built yet
+- Detecting the duplicate files a sync service keeps when two people edit one note.
+- A scheduled `brain check` to stand in for review on shared content.
+- Google Drive detection outside macOS (`~/Library/CloudStorage`); on other systems, give the folder path to `brain share`.
+- Restricting one team's folder to its members (planned in the roadmap as restricted teams).
 
 ## Related
-- [[Layers and privacy]]: the layer rules and the short version of the transports
-- [[Setup]]: installing, sharing through git, onboarding a teammate
+- [[Layers and privacy]]: the layer rules and the short version of the two channels
+- [[Setup]]: installing, sharing content, getting the system through git, onboarding a teammate
 - [[How Company Brain works]]: the overview

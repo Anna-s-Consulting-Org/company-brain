@@ -10,7 +10,7 @@ Each agent starts blind to what the others just did, so you paste the same conte
 
 ## Before you start
 1. **Find the brain.** The session context has a **Company Brain** line with the brain path and the engine path. If it is missing, run `python3 "${CLAUDE_SKILL_DIR}/../../scripts/brain.py" root`. No brain found: stop and tell the user to open Claude in the brain folder or set the plugin's vault path.
-2. **`crew`** below means `python3 "<engine>/scripts/crew.py" --dir "<brain>/Personal/Crew"`. **Always pass `--dir`.** Without it the helper falls back to the vault's `wiki/team/` folder, which would put agent logs inside the shared, committed part of the brain.
+2. **`crew`** below means `python3 "<engine>/scripts/crew.py" --dir "<brain>/Personal/Crew"`. **Always pass `--dir`.** Without it the helper falls back to the vault's `wiki/team/` folder, which would put agent logs inside the shared part of the brain.
 3. **Read the rules** in `<brain>/CLAUDE.md` unless they are already loaded.
 
 ## Where the log lives

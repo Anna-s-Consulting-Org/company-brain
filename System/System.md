@@ -13,7 +13,7 @@ This is the hub of the System area: how Company Brain works, its rules, its skil
 
 - [[How Company Brain works]]: start here
 - [[Layers and privacy]]: what is shared and what stays personal
-- [[Sharing models]]: what git, drive and local each do, and what drive mode leaves manual
+- [[Sharing models]]: content through a Shared Drive or shared folder, the system through git, and how they stay apart
 - [[Skills]]: every skill and where it writes
 - [[Automations]]: hooks and schedules
 - [[Setup]]: install, configure, onboard teammates

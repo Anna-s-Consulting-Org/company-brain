@@ -14,7 +14,7 @@ timezone: {{TIMEZONE}}
 # Me
 
 ## For future agent
-This is the identity record of the person who owns this copy of the brain ({{ME}}). Every Company Brain skill reads it first to know who "me" and "my team" are. It lives in Personal/, so it is never committed or shared; the shared profile is [[{{ME}}]].
+This is the identity record of the person who owns this copy of the brain ({{ME}}). Every Company Brain skill reads it first to know who "me" and "my team" are. It lives in Personal/, so it never goes to git or the shared folder; the shared profile is [[{{ME}}]].
 
 ## Working context
 - Role: {{ROLE}}

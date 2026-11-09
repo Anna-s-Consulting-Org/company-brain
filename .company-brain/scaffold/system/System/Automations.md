@@ -45,4 +45,4 @@ Unattended runs draft; they never publish team updates, promote notes, push to g
 ## How to schedule
 - **Cowork (Claude desktop app), recommended**: open a Cowork session on the brain folder and create a scheduled task with the prompt above. It runs on your computer, so it can read and write the vault.
 - **Claude Code headless with launchd**: `claude -p "<prompt>" --permission-mode acceptEdits` run from the brain folder. launchd strips the environment, so set an explicit `PATH` that includes `claude`, `python3`, and `uv`. Template: `.company-brain/automations/com.company-brain.weekly.plist.template`.
-- **Cloud schedulers** (remote routines) run on a server and cannot see your local vault; use them only if the brain is in a git remote and you accept that the run happens on a copy.
+- **Cloud schedulers** (remote routines) run on a server and cannot see your local vault. The git repository holds only the system, never notes, so a cloud run has no content to work on: schedule on a machine that has the brain and its shared folder.

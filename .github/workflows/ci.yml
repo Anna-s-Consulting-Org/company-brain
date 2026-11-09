@@ -40,6 +40,11 @@ jobs:
       - name: Freshness lint
         run: ./brain freshness
 
+      # Git carries the system only. Fail if any tracked file is content (Company/, Teams/, Personal/,
+      # local files) or not a known system path, even if someone skipped the pre-commit guard.
+      - name: No content in git
+        run: ./brain git check --tracked
+
       # Layer leaks, layer mismatches and private sections in shared notes are errors.
       - name: Brain check
         run: ./brain check --severity error

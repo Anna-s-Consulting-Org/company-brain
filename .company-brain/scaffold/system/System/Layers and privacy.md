@@ -9,14 +9,14 @@ layer: company
 # Layers and privacy
 
 ## For future agent
-This note is the human-readable version of the Company Brain layer model: what is shared, what stays personal, the link-direction rule, private sections, promotion, conflict-free teamwork, and the two sharing transports (git and Google Drive). The binding spec is `.company-brain/references/layers.md`.
+This note is the human-readable version of the Company Brain layer model: what is shared, what stays personal, the link-direction rule, private sections, promotion, conflict-free teamwork, and the two channels: content through a shared folder (Google Shared Drive or another), the system through git. The binding spec is `.company-brain/references/layers.md`.
 
 ## What goes where
 | Layer | Folder | Who sees it | Examples |
 |---|---|---|---|
-| Company | `Company/` | the whole company | [[Mission]], strategy, company OKRs, plans, roadmap, [[Org Chart]], people profiles, all-hands notes |
-| Team | `Teams/<Team>/` | the whole company, owned by the team | team charter, team OKRs, projects, meetings, weekly updates and roll-ups, board, roadmap |
-| Personal | `Personal/` | only you (gitignored, never synced) | daily and weekly notes, 1:1s, private goals, drafts, inbox |
+| Company | `Company/` | the whole company (through the shared folder) | [[Mission]], strategy, company OKRs, plans, roadmap, [[Org Chart]], people profiles, all-hands notes |
+| Team | `Teams/<Team>/` | the whole company, owned by the team (through the shared folder) | team charter, team OKRs, projects, meetings, weekly updates and roll-ups, board, roadmap |
+| Personal | `Personal/` | only you (never synced, never in git) | daily and weekly notes, 1:1s, private goals, drafts, inbox |
 
 Your identity lives in `Personal/Me.md`; your public profile lives in `Company/Org/People/<Your Name>.md`.
 
@@ -35,14 +35,12 @@ Personal to team to company is always deliberate. Ask Claude to share or publish
 - One note per meeting, written by the note-taker.
 - Generated views (`OKR Tree`, prioritization, org chart, discovery canvases) are rebuilt by `brain refresh`; never merge them by hand.
 
-## Sharing transports
-**Git (default, recommended).** The brain is a private git repository. `Company/`, `Teams/`, `System/`, `Templates/`, and `.company-brain/` are committed; `Personal/`, `Sources/`, `Exports/`, `index.md`, and `log.md` are gitignored. Company-layer changes go through pull requests so the company layer has review. In Obsidian, the Obsidian Git community plugin can pull and push on a schedule. Claude never pushes on its own.
+## Two channels: content and system
+**Content travels through a shared folder.** Everything the company writes into the brain (people, teams, meetings, goals, decisions, and `Company/company.yaml` with the company's name and settings) lives in `Company/` and `Teams/`. `brain share --to <folder>` moves those two folders into a Google Shared Drive folder (`drive`) or any other shared folder such as OneDrive, Dropbox or a network share (`folder`) and links them back, so teammates see changes as soon as they sync. `Personal/` stays a normal local folder. There is no review step, so limit who can edit the company folder in Drive. With `local`, nothing is shared; good for trying the system alone.
 
-**Google Shared Drive.** For teams that do not use git: put `Company/` and each `Teams/<Team>/` in Shared Drive folders and replace the local folders with symlinks to them (Drive for Desktop, mirror mode). Keep `Personal/` a normal local folder. There is no review step, so limit who can edit the company folder in Drive.
+**The system travels through git.** The engine, skills, templates, `System/` docs and `CLAUDE.md` live in a git repository, for example on GitHub, so improvements are versioned, reviewed and checked by CI. Git never carries content: `.gitignore` leaves out `Company/`, `Teams/` and `Personal/`, a pre-commit guard refuses any commit that holds content (or names a person, the company, or a company note in a system file), and CI checks every tracked file. To commit a system change, ask Claude (`/company-brain:contribute`) or run `./brain git stage`. Claude never pushes on its own.
 
-**Local.** Nothing is shared; good for trying the system alone.
-
-The choice is `sharing.model` in `brain.yaml`. What each model does step by step, what drive mode leaves manual, and a comparison: [[Sharing models]].
+The content choice is `sharing.model` in `brain.local.yaml` on each machine. What each model does step by step and a comparison: [[Sharing models]].
 
 ## What Claude pulls from your tools
 The weekly and daily skills read calendar, Slack, email, Jira, Drive, and meeting notes only through the connectors you have enabled, and write what they find into your **personal** notes. Nothing from your messages reaches a team or company note unless you approve the team update or a promotion.

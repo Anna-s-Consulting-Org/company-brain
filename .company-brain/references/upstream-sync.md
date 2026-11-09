@@ -23,7 +23,7 @@ How to take what obsidian-second-brain (upstream) adds or changes and fit it to 
 5. **Follow changed commands**: for each adapted or covered command that changed, read the diff and port what improves its skill. Write nothing that breaks a rule below.
 6. **Removed upstream**: delete the entry from `commands.map`. The skill here stays; it is ours. If upstream moved its commands to another folder, `upstream-check` says the folder is missing: set `commands.dir` to the new folder, then triage as usual.
 7. **Record the sync**: `./brain upstream-check --mark`. It refuses, before copying or writing anything, while a command is untriaged, a removed one is still listed, or the commands folder cannot be found.
-8. **Finish**: run the checks below, list the changed files, and suggest a commit. Never push or open a pull request without being asked.
+8. **Finish**: run the checks below, list the changed files, and suggest a commit of system files only: stage them with `./brain git stage` (the `contribute` skill), never `git add -A`. Never push or open a pull request without being asked.
 
 ## Triage: does a new command belong here?
 

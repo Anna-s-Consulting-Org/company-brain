@@ -4,18 +4,18 @@ The canonical spec for how Company Brain separates personal, team, and company k
 
 ## The three layers
 
-| Layer | Folder | Shared with | Committed to git | Typical content |
+| Layer | Folder | Shared with | Travels through | Typical content |
 |---|---|---|---|---|
-| company | `Company/` | everyone in the company | yes | mission, vision, values, strategy, company OKRs, plans, discovery, roadmap, org chart, people profiles, company projects, all-hands and leadership meetings, company decisions |
-| team | `Teams/<Team>/` | everyone (owned and edited by the team) | yes | team charter, team OKRs, team projects, team meetings, team weekly updates and roll-ups, team discovery, team board and roadmap |
-| personal | `Personal/` | nobody (local only) | no, gitignored | identity (`Me.md`), daily notes, personal weekly notes, 1:1s, private goals, personal board, inbox, drafts |
+| company | `Company/` | everyone in the company | the shared folder, never git | mission, vision, values, strategy, company OKRs, plans, discovery, roadmap, org chart, people profiles, company projects, all-hands and leadership meetings, company decisions |
+| team | `Teams/<Team>/` | everyone (owned and edited by the team) | the shared folder, never git | team charter, team OKRs, team projects, team meetings, team weekly updates and roll-ups, team discovery, team board and roadmap |
+| personal | `Personal/` | nobody (local only) | nothing, this machine only | identity (`Me.md`), daily notes, personal weekly notes, 1:1s, private goals, personal board, inbox, drafts |
 
 Two more folders sit beside the layers and are not layers:
 
 - `Sources/` holds symlinks to external folders (Desktop, Google Drive). Read-only by rule, gitignored, machine-local. See `references/sources.md`.
-- `System/` and `Templates/` hold the framework library, docs, and templates. Shared, committed, rarely edited.
+- `System/` and `Templates/` hold the framework library, docs, and templates. They are part of the system, which travels through git (see Two channels), and are rarely edited.
 
-The layer is recorded twice, on purpose: by the folder the note lives in (what git and Drive sharing act on) and by `layer:` in frontmatter (what agents and Dataview read). They must agree. `brain check` reports any note whose `layer:` does not match its folder.
+The layer is recorded twice, on purpose: by the folder the note lives in (what the shared folder acts on) and by `layer:` in frontmatter (what agents and Dataview read). They must agree. `brain check` reports any note whose `layer:` does not match its folder.
 
 ## Identity
 
@@ -47,7 +47,7 @@ Personal  ──links to──▶  Team  ──links to──▶  Company
 - A personal note may link to anything.
 - A team or company note may link to team and company notes only. A wikilink or embed from `Company/` or `Teams/` to a note in `Personal/` is a leak: for everyone else it is a dangling link, and its title alone can reveal private content (a 1:1 title, a draft decision).
 - Dataview queries in shared notes may read `Personal/` (each person's query runs over their own local data). The leak rule applies to static links, not to code blocks.
-- A team note may link to another team's notes. Teams are visible to the whole company; there is no team-private layer by default. A team that needs privacy uses a separate brain or a restricted Drive folder mounted as its team folder (see Sharing transports).
+- A team note may link to another team's notes. Teams are visible to the whole company; there is no team-private layer by default. A team that needs privacy uses a separate brain or a restricted Drive folder mounted as its team folder (see Sharing models).
 
 Enforced by: the `layer_guard` hook on every write, and `brain check` across the whole vault.
 
@@ -68,23 +68,44 @@ Nothing is ever promoted automatically by a hook, scheduled job, or background a
 
 ## Conflict-free multiplayer writes
 
-When several people write to the same shared area, structure the files so that git never has to merge two people's edits to one file:
+When several people write to the same shared area, structure the files so that two people never edit one file at the same time (a shared folder keeps both versions as separate copies instead of merging them):
 
 - **Weekly updates**: each person writes their own file `Teams/<Team>/Weekly/<YYYY>-W<WW> - <Team> - <Person>.md`. The team roll-up `... - <Team> - Team Weekly.md` is written by one person (the lead or whoever runs `/company-brain:team-weekly`).
 - **KR check-ins**: the KR owner edits only their own KR line in the objective note, and appends one row to its `## Check-ins` table. Line-level changes by different owners merge cleanly.
 - **Meetings**: one note per meeting, written by the note-taker. Other attendees add to it through a follow-up edit, not a second note.
 - **Boards**: one board per team. Personal action items go on `Personal/My Board.md`, not on the team board, unless they are team commitments.
-- **Generated views** (`OKR Tree`, `Prioritization`, `Org Chart`, discovery canvases) are rebuilt by `brain refresh` inside `<!-- brain:auto:... -->` markers. They can be regenerated by anyone at any time, so a merge conflict there is resolved by re-running `brain refresh`, never by hand.
+- **Generated views** (`OKR Tree`, `Prioritization`, `Org Chart`, discovery canvases) are rebuilt by `brain refresh` inside `<!-- brain:auto:... -->` markers. They can be regenerated by anyone at any time, so a conflict copy of one is resolved by deleting it and re-running `brain refresh`, never by hand.
 
-## Sharing transports
+## Two channels: content and system
 
-| Model | How the shared layers travel | Personal layer | When to use |
+A brain holds two kinds of files, and each has exactly one way to reach other people. They never mix.
+
+| Channel | What | Travels through | Guarded by |
 |---|---|---|---|
-| `git` (default) | The vault is a private git repo. `Company/`, `Teams/`, `System/`, `Templates/`, `.company-brain/` are committed. Changes to `Company/` go through pull requests | gitignored, never leaves the laptop | Teams comfortable with git, or using the Obsidian Git plugin |
-| `drive` | `Company/` and each `Teams/<Team>/` are symlinks into Google Shared Drive folders (Drive for Desktop, mirror mode recommended) | a normal local folder | Non-technical teams. No review step, so keep company-layer edits to a few editors |
-| `local` | Nothing is shared | local | Trying the system alone before inviting the team |
+| content | every note in `Company/`, `Teams/`, `Personal/`; `Company/company.yaml` (company name, fiscal year, timezone, shared sources); `index.md`, `log.md`, `Sources/`, `Exports/`, `brain.local.yaml`, `.checkin.json` | `Company/` and `Teams/`: the shared folder (`sharing.model`). Everything else: nowhere, it stays on this machine | `.gitignore`; `brain check` (Personal/ inside a shared or synced folder, links not reachable) |
+| system | `.company-brain/` (engine, skills, hooks, CLI, MCP server, specs, scaffold), `System/`, `Templates/`, `CLAUDE.md`, `Home.md`, `README.md`, `brain.yaml`, `.gitignore`, `.claude/`, `.claude-plugin/`, `.github/`, `.obsidian/` settings | git (a GitHub repository, for example) | the pre-commit guard `brain git check --staged`, CI `brain git check --tracked` |
 
-The model is recorded in `brain.yaml` under `sharing.model`. Skills read it to decide whether to suggest a commit or pull request after a shared-layer write (`git`) or just to save (`drive`, `local`). Skills never run `git push` and never open a pull request on their own: they show the user the command or ask first.
+**Git carries the system only.** A commit may hold system paths (the list above, plus `git.allow` in `brain.yaml`) and nothing else. The guard refuses:
+- any path in `Company/`, `Teams/`, `Personal/`, `Sources/`, `Exports/`, and the local files above, whatever `git.allow` says;
+- any path that is not a system path;
+- a note with a content type (objective, meeting, person, decision, ...) inside `System/` or at the root, or inside `Templates/` without template syntax;
+- added lines in system files that contain the company's name, a person's full name (from `Company/Org/People/`), a link to a company note, or a path into a real team's folder or to a content note.
+
+Deleting tracked content from git always passes: that is how an older brain, which shared notes through git, moves to this model (`brain git untrack`). Nothing reviews a commit for meaning, so the `contribute` skill also asks the author to keep system files generic: placeholders, not names.
+
+## Sharing models (content)
+
+| Model | How `Company/` and `Teams/` travel | Personal layer | When to use |
+|---|---|---|---|
+| `drive` | symlinks into a folder in a Google Shared Drive (Drive for Desktop, mirror mode recommended) | a normal local folder | Most companies. No review step, so keep company-layer edits to a few editors (Drive permissions) |
+| `folder` | symlinks into any other folder everyone can reach: OneDrive, Dropbox, iCloud, a network share | a normal local folder | Companies on another sync service |
+| `local` | not shared | local | Trying the system alone before inviting the team |
+
+`brain share --to <folder>` sets it up: a dry run first, then `--yes` moves `Company/` and `Teams/` into the folder (or, when the folder already holds them, keeps the shared copy and moves this machine's copy to `.share-backup/`), replaces them with links, and records the model and the folder in `brain.local.yaml`. The shared folder must sit outside the brain, and the brain must not sit inside it, so `Personal/` can never sync. Each teammate runs the same command with their own path to the same folder.
+
+The model is this machine's choice, recorded in `brain.local.yaml` under `sharing.model`; company settings that teammates need are in the shared `Company/company.yaml`. After a shared-layer write, skills say whether it syncs now (`drive`, `folder`) or stays local (`local`), and never suggest a commit. There is no pull request for content, so a change to a company note is shown as a diff and written only after the user's yes. Skills never run `git push` and never open a pull request on their own.
+
+Older brains used a `git` model that committed `Company/` and `Teams/`. It is retired: `brain init` moves the settings out of `brain.yaml` and reads `git` as `local`, and `brain check` reports tracked content as an error until `brain git untrack` removes it from git (the files stay on disk).
 
 ## What each skill writes where (summary)
 

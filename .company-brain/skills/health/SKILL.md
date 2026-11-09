@@ -1,6 +1,6 @@
 ---
 name: health
-description: Check and repair the brain - layer leaks (shared notes linking to personal ones), AI-first frontmatter and preambles, layer mismatches, unaligned or stale OKRs, KRs without owners, orphan notes, unresolved links, missing Obsidian plugins; then rebuild every generated view. Use for "brain health", "check the brain", "fix the vault", "why is the graph messy", before a quarterly review or a git commit.
+description: Check and repair the brain - layer leaks (shared notes linking to personal ones), AI-first frontmatter and preambles, layer mismatches, unaligned or stale OKRs, KRs without owners, orphan notes, unresolved links, missing Obsidian plugins; then rebuild every generated view. Use for "brain health", "check the brain", "fix the vault", "why is the graph messy", before a quarterly review, before sharing the brain, or when git or the shared folders look wrong.
 ---
 
 # Health
@@ -28,4 +28,4 @@ description: Check and repair the brain - layer leaks (shared notes linking to p
 - Layers: Company/ and Teams/ are shared; Personal/ is local only. Never link from a shared note to a Personal note, and never copy content under `## Private` out of Personal/ (`references/layers.md`).
 - AI-first notes: frontmatter with `date`, `type`, `tags`, `ai-first: true`, `layer`; a `## For future agent` preamble; `[[wikilinks]]` for every person, team, objective, and project (`references/ai-first-rules.md`, `references/schemas.md`).
 - Search before create (`brain new` refuses duplicates and prints the existing path). Never invent facts, numbers, dates, or people: write `TBD` and ask.
-- Finish with `brain refresh` when OKRs, discovery, scores, or people changed, otherwise `brain index`. With `sharing: git`, list the shared files changed and suggest a commit; never push or open a pull request yourself.
+- Finish with `brain refresh` when OKRs, discovery, scores, or people changed, otherwise `brain index`. Notes are content: they reach teammates through the shared folder (`sharing.model`), never through git, so never stage, commit or suggest committing them. Git is only for system changes (the `contribute` skill). Never push or open a pull request yourself.

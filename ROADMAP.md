@@ -135,8 +135,18 @@ Item codes refer to the sections below.
 - **E7 Backups (Later).** Drive keeps limited history per file; a scheduled snapshot of the shared folders gives a restore point.
 - Restricted teams (D3) are also a protection item.
 
+## Changes since the review
+**2026-11-09: content and system now travel separately.** Git is no longer a way to share notes; it carries the system only, and Drive or another shared folder carries content. This builds the model section C already set out (notes through Drive, skills through git) and changes several items above:
+- **The `git` sharing model is retired.** `sharing.model` is `drive`, `folder` (any shared folder: OneDrive, Dropbox, a network share) or `local`, and lives in `brain.local.yaml` on each machine. Company settings moved from `brain.yaml` to `Company/company.yaml`, so they travel with the content; `brain.yaml` holds system settings only. `brain init` moves the settings of an older brain.
+- **B4 built** as `brain share --to <folder>`: a dry run, then `--yes` moves `Company/` and `Teams/` into the shared folder and links them back. A teammate whose local copy differs gets it moved to `.share-backup/` rather than merged. It links the two folders whole, not one link per team, so partial mounts (D6) remain open.
+- **E1 largely done.** The product repository no longer tracks `Company/` or `Teams/`; new brains get them from the scaffold. Git cannot carry content: `.gitignore` leaves it out, a pre-commit guard (`brain git check --staged`, installed by `brain init`) refuses content paths, non-system paths, content notes in `System/`, and added lines that name the company, a person, a team folder or a company note. CI runs `brain git check --tracked`.
+- **E2 in part.** The pre-commit hook runs the git guard, not `brain check`; shared-folder content still relies on B3 for checks on edits made outside Claude.
+- **E3 in part.** `brain check` errors when git tracks content or `Personal/` sits inside the shared folder, and warns when `Personal/` sits in any cloud-synced folder. `brain share` refuses a shared folder that contains the brain.
+- **New: committing system changes.** `brain git status` splits changes by channel, `brain git stage` stages system files only, and the `contribute` skill walks through a commit. `brain git untrack` takes content out of an older brain's git history going forward (the files stay on disk; old commits still hold them).
+- **Git: pros and cons in [[Sharing models]] no longer apply to content.** Review for company notes, which git mode gave through pull requests, now rests on skills showing a diff and waiting for a yes, plus Drive permissions.
+
 ## Related
-- [[Sharing models]]: git, drive and local, and the manual Drive recipe
+- [[Sharing models]]: content through a shared folder, the system through git
 - [[Layers and privacy]]: the layer rules every item above keeps
 - [[Automations]]: what runs automatically today
 - [[Setup]]: install and onboarding

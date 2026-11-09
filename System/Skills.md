@@ -14,7 +14,7 @@ This note is the catalog of Company Brain skills: what each does and where it wr
 ## Catalog
 | Skill | Does | Writes to |
 |---|---|---|
-| `/company-brain:setup` | set up the brain, onboard a teammate | `Personal/Me.md`, teams, `brain.yaml` |
+| `/company-brain:setup` | set up the brain, onboard a teammate, share content through Drive or a shared folder | `Personal/Me.md`, teams, `Company/company.yaml`, `brain.local.yaml` |
 | `/company-brain:context` | load company context before strategic work | reads only |
 | `/company-brain:daily` | today's note with calendar and focus | `Personal/Daily/` |
 | `/company-brain:weekly` | weekly note from all your tools, action items, KR check-ins, team update | `Personal/Weekly/`, your board, KR lines, `Teams/<Team>/Weekly/` on approval |
@@ -32,7 +32,7 @@ This note is the catalog of Company Brain skills: what each does and where it wr
 | `/company-brain:decide` | decision records | `<layer>/Decisions/` |
 | `/company-brain:board` | kanban boards at any layer | boards |
 | `/company-brain:promote` | share a personal note with the team or company | the target layer |
-| `/company-brain:connect` | mount Desktop and Google Drive folders as sources | `Sources/`, `brain.yaml` |
+| `/company-brain:connect` | mount Desktop and Google Drive folders as sources | `Sources/`, `Company/company.yaml` |
 | `/company-brain:ingest` | read a document, or a whole folder in resumable batches, into the brain (Word and OpenDocument too) | `<layer>/Knowledge/` and the notes it informs |
 | `/company-brain:health` | check and repair the brain | fixes across the brain |
 | `/company-brain:export` | Claude Project pack for claude.ai | `Exports/Claude Project/` |
@@ -45,11 +45,12 @@ This note is the catalog of Company Brain skills: what each does and where it wr
 | `/company-brain:recap` | summarize today, a week, a month or a quarter | reads only (saves on request) |
 | `/company-brain:challenge` | red-team an idea or plan against strategy, decisions and experiments | today's daily note; a report on request |
 | `/company-brain:task` | add one task to the right board | `Personal/My Board.md` (team board on approval), today's daily note |
+| `/company-brain:contribute` | commit a system improvement (skill, template, command, engine, docs) to git without any company content | a git commit of system files, on your yes |
 
 ## How to run them
 - **Claude Code / desktop app / Cowork**: type `/company-brain:weekly` (or any name above), or ask in plain words ("prepare my 1:1 with Sam", "prioritize the platform solutions"). This works with the plugin installed and, in Claude Code opened in the brain folder, without it: `.claude/commands/company-brain/` holds one generated command per skill (`./brain commands` rewrites them from the skills; CI fails if they are out of date). Cloud sessions on claude.ai load the plugins of your claude.ai account and organization, but not one installed on your machine or enabled by this repository, so unless company-brain is an account or organization plugin, the project commands are the route there.
 - **Inside Obsidian**: run Claude in the vault folder (a terminal in this folder, or an Obsidian plugin that embeds Claude Code); the brain's `CLAUDE.md` and the plugin load automatically. Templates in `Templates/` work with Templater without Claude.
-- **From the filesystem**: the `brain` CLI does the deterministic parts without Claude: `./brain period`, `./brain new objective ...`, `./brain promote <note> --to team` (dry run, then `--yes`), `./brain refresh`, `./brain check`, `./brain connect`, `./brain export-pack`, `./brain upstream-check` (changes in obsidian-second-brain to the files Company Brain borrowed). Run `./brain --help`.
+- **From the filesystem**: the `brain` CLI does the deterministic parts without Claude: `./brain period`, `./brain new objective ...`, `./brain promote <note> --to team` (dry run, then `--yes`), `./brain refresh`, `./brain check`, `./brain connect`, `./brain share` (link `Company/` and `Teams/` into a shared folder), `./brain git status` and `./brain git stage` (system changes only), `./brain export-pack`, `./brain upstream-check` (changes in obsidian-second-brain to the files Company Brain borrowed). Run `./brain --help`.
 - **Claude Desktop chat (not Cowork)**: add the brain MCP server (see [[Setup]]); its `brain_list_skills` and `brain_get_skill` tools expose most skills as playbooks.
 
 ## Relationship to obsidian-second-brain
