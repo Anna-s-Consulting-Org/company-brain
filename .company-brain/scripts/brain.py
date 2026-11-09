@@ -1522,18 +1522,30 @@ def _section_span(lines, title_re: str, level: int = 2):
     return None
 
 
-def drop_private(body: str):
-    """Remove every `# Private` / `## Private` section (to the next heading of the same or higher level)."""
+def _drop_sections(body: str, match):
+    """Remove every section whose heading satisfies match(level, title), to the next heading of the
+    same or higher level. Returns (body, [titles removed])."""
     lines = body.split("\n")
     heads = _headings(lines)
-    drop = set()
+    drop, titles = set(), []
     for k, (i, lvl, title) in enumerate(heads):
-        if lvl <= 2 and title.lower() == "private":
+        if match(lvl, title) and i not in drop:
             end = next((j for j, l2, _ in heads[k + 1:] if l2 <= lvl), len(lines))
             drop.update(range(i, end))
-    count = sum(1 for i, lvl, t in heads if lvl <= 2 and t.lower() == "private")
+            titles.append(title)
     kept = [l for i, l in enumerate(lines) if i not in drop]
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).rstrip() + "\n", count
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).rstrip() + "\n", titles
+
+
+def drop_private(body: str):
+    """Remove every `# Private` / `## Private` section (to the next heading of the same or higher level)."""
+    body, titles = _drop_sections(body, lambda lvl, t: lvl <= 2 and t.lower() == "private")
+    return body, len(titles)
+
+
+def drop_stakeholder(body: str):
+    """Remove stakeholder sections (what they care about, how we can help each other, ...): they stay personal."""
+    return _drop_sections(body, lambda lvl, t: bool(STAKEHOLDER_HEADING.match(_heading_key(t))))
 
 
 def unlink_personal(text: str, idx: dict):
@@ -1605,6 +1617,7 @@ def _team_update_from_weekly(root: Path, src: Note, team: str, who: dict, name: 
     if not span:
         raise SystemExit(f"error: {src.rel} has no `## Team update` section; draft it with the weekly skill first")
     draft, _ = drop_private("\n".join(lines[span[0] + 1:span[1]]))
+    draft = drop_stakeholder(draft)[0]
     sections, current = {}, None
     for line in draft.split("\n"):
         lm = re.match(r"^\s*[-*]\s+(Highlights|KR progress|Next week|Help needed)\s*:\s*(.*)$", line, re.I)
@@ -1666,7 +1679,7 @@ def promote(root: Path, ref: str, to: str, team: str | None = None, kind: str | 
     else:
         team = None
     src_text = src.text.lstrip("\ufeff").replace("\r\n", "\n")
-    removed = {"private_sections": 0, "sections": [], "personal_links": [], "fields": []}
+    removed = {"private_sections": 0, "sections": [], "personal_links": [], "fields": [], "stakeholder": []}
 
     if kind == "team-update" and ntype == "weekly":
         res, removed["sections"] = _team_update_from_weekly(root, src, team, who, name)
@@ -1677,7 +1690,10 @@ def promote(root: Path, ref: str, to: str, team: str | None = None, kind: str | 
     else:
         head, body = _split_head(src_text)
         body, removed["private_sections"] = drop_private(body)
-        text, dropped = drop_frontmatter_keys(head + body, PERSONAL_ONLY_FIELDS + (("team",) if to == "company" else ()))
+        body, removed["stakeholder"] = drop_stakeholder(body)
+        stake_keys = tuple(k for k in src.fm if is_stakeholder_field(k))
+        text, dropped = drop_frontmatter_keys(head + body, PERSONAL_ONLY_FIELDS + stake_keys
+                                              + (("team",) if to == "company" else ()))
         removed["fields"] = [d for d in dropped if d != "team"]
         fm_set = {"layer": to}
         if to == "team":
@@ -2095,7 +2111,8 @@ WORKS_ON_EMPTY = ("Nothing recorded yet. This list fills on the next `brain refr
 # live in Obsidian between refreshes: owners only, matched by link rather than by substring
 LIVE_WORKS_ON = ("Live in Obsidian (owners only; the list above adds contributors and connected systems on `brain refresh`):\n"
                  "```dataview\nLIST FROM \"Company\" OR \"Teams\"\n"
-                 "WHERE (type = \"project\" OR type = \"objective\") AND contains(flat(list(owner)), this.file.link)\n```")
+                 "WHERE (type = \"project\" OR type = \"objective\")\n"
+                 "  AND (contains(flat(list(owner)), this.file.link) OR contains(string(owner), \"[[\" + this.file.name + \"]]\"))\n```")
 # the Dataview block profiles carried before `Works on` became a generated block
 LEGACY_WORKS_ON = re.compile(r"```dataview[ \t]*\n[^`]*?type = \"project\"[^`]*?contains\(string\(owner\), this\.file\.name\)[^`]*?```\n?")
 URL_RE = re.compile(r"https?://\S+")
@@ -2112,17 +2129,47 @@ def _ref_key(ref) -> str:
 
 # Stakeholder management is my view of a person and stays in Personal/Stakeholders/; a shared profile
 # carrying any of it is an error in brain check and the layer guard
-STAKEHOLDER_FIELDS = ("relationship", "influence", "interest", "last_interaction", "follow_up")
+STAKEHOLDER_FIELDS = ("relationship", "influence", "interest", "last_interaction", "follow_up")  # key prefixes
 STAKEHOLDER_SECTIONS = ("what they care about", "how we can help each other", "how to work with them", "open asks")
+# headings compared lowercase with punctuation dropped: "What She Cares About:", "How we help each other"
+STAKEHOLDER_HEADING = re.compile(r"^(what \w+ cares? about|how (we|i) (can )?help each other|how to work with \w+|"
+                                 r"open asks?|relationships?|influence|interest)\b")
+RELATIONAL_HEADING = re.compile(r"^how (we|i) (can )?help each other\b")  # checked in every shared note
+STAKEHOLDER_PROSE = re.compile(r"\brelationship strength\b|\blast interaction\s*:", re.I)  # the AI-first preamble
+
+
+def _heading_key(title: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", title.lower())).strip()
+
+
+def is_stakeholder_field(key) -> bool:
+    """relationship, Relationship, relationship_strength, last-interaction, follow_up_date ..."""
+    return str(key).strip().lower().replace("-", "_").startswith(STAKEHOLDER_FIELDS)
+
+
+def is_profile(n: Note) -> bool:
+    return n.type == "person" or n.rel.startswith(PEOPLE_DIR)
 
 
 def stakeholder_leaks(n: Note) -> list:
-    """Stakeholder fields and sections found in a shared person profile."""
-    if n.folder_layer not in ("company", "team") or not (n.type == "person" or n.rel.startswith(PEOPLE_DIR)):
+    """Stakeholder content in a shared note: any stakeholder field, heading or relationship prose on a
+    profile; the distinctly relational heading (how we can help each other) in any other shared note."""
+    if n.folder_layer not in ("company", "team"):
         return []
-    found = [f"`{k}:`" for k in STAKEHOLDER_FIELDS if k in n.fm]
-    found += [f"`## {t}`" for _, lvl, t in _headings(n.body.split("\n")) if lvl == 2 and t.lower() in STAKEHOLDER_SECTIONS]
+    heads = [t for _, _, t in _headings(n.body.split("\n"))]
+    if not is_profile(n):
+        return [f"`{t}`" for t in heads if RELATIONAL_HEADING.match(_heading_key(t))]
+    found = [f"`{k}:`" for k in n.fm if is_stakeholder_field(k)]
+    found += [f"`{t}`" for t in heads if STAKEHOLDER_HEADING.match(_heading_key(t))]
+    if STAKEHOLDER_PROSE.search(strip_code(n.body)):
+        found.append("relationship strength or last interaction in the text")
     return found
+
+
+def stakeholder_leak_message(n: Note, leaks: list) -> str:
+    where = (f"Personal/Stakeholders/Stakeholder - {n.name}.md" if is_profile(n)
+             else "the person's stakeholder note in Personal/Stakeholders/")
+    return f"stakeholder content in a shared note ({', '.join(leaks)}): move it to {where}, which is never shared"
 
 
 def profiles(notes) -> list:
@@ -2493,8 +2540,7 @@ def check(root: Path, notes=None) -> list:
             add("error", n, f"`type: {n.type}` notes are personal; move this note to Personal/")
         leaks = stakeholder_leaks(n)
         if leaks:
-            add("error", n, "stakeholder content on a shared profile (" + ", ".join(leaks) + "): move it to "
-                            f"Personal/Stakeholders/Stakeholder - {n.name}.md, which is never shared")
+            add("error", n, stakeholder_leak_message(n, leaks))
         for target, anchor, embed in n.links():
             if re.search(r"\.(?!md$)[A-Za-z0-9]{2,6}$", target):
                 continue  # canvas, image, pdf: not a note
@@ -2530,11 +2576,14 @@ def check(root: Path, notes=None) -> list:
                                f"({threshold}): confirm it with the user (then `stated`) or end it")
             if _norm(e.get("role")) not in WORK_ROLES:
                 add("info", p, f"{what} has role {e.get('role')!r}; expected one of {', '.join(WORK_ROLES)}")
-    model = work_items(notes, period)
-    for p in profiles(notes):
-        if str(p.get("status") or "").lower() != "left" and not any(i["current"] for i in model[p.name.lower()]):
-            add("info", p, "no current work recorded: look for it in connected systems with the org skill's "
-                           "works-on rules, or in project notes' `## People` tables")
+    start, end = AUTO_START.format(key=WORKS_ON_KEY), AUTO_END.format(key=WORKS_ON_KEY)
+    active = [p for p in profiles(notes) if str(p.get("status") or "").lower() != "left"]
+    idle = [p.name for p in active if "### Current" not in (p.text.split(start, 1)[1].split(end, 1)[0]
+                                                              if start in p.text and end in p.text else "")]
+    if idle and len(idle) < len(active):  # silent until the brain records work for anyone
+        add("info", None, f"{len(idle)} profile(s) show no current work as of the last `brain refresh`: "
+                          + ", ".join(idle[:10]) + (", ..." if len(idle) > 10 else "")
+                          + ". Look in connected systems with the org skill's works-on rules")
     for k, names in sorted(owners.items()):
         if len(names) > 1:
             add("warn", None, f"identifier {k!r} is on several profiles ({', '.join(names)}): "
@@ -3658,7 +3707,11 @@ def record_work(root: Path, person: str, project: str, role: str, source: str, c
             e["checked"] = today
             if CONFIDENCE_RANK.get(confidence, 0) > CONFIDENCE_RANK.get(_norm(e.get("confidence")), 0):
                 e["confidence"], e["source"] = confidence, source
-            action = "confirmed"
+            if start and not _date_str(e.get("from")):
+                e["from"] = start
+                action = "confirmed, start date added"
+            else:
+                action = "confirmed"
         else:
             for e in open_same:  # same work, new role: close the old fact, keep it as history
                 e["until"], e["checked"] = start or today, today
@@ -3667,7 +3720,7 @@ def record_work(root: Path, person: str, project: str, role: str, source: str, c
             action = "role changed" if open_same else "added"
     text = prof.text.lstrip("﻿").replace("\r\n", "\n")
     text = set_frontmatter_lines(text, "works_on", render_entries("works_on", entries))
-    if action != "confirmed":
+    if action != "confirmed":  # a re-confirmation alone is not a meaningful edit
         text = set_frontmatter(text, {"updated": today})
     out = {"recorded": True, "action": action, "person": prof.name, "path": prof.rel, "project": label,
            "project_note": bool(proj), "role": role, "confidence": confidence, "profile_created": bool(created),
@@ -3710,7 +3763,7 @@ def upgrade_profile(root: Path, p: Note) -> tuple:
     text = p.text.lstrip("﻿").replace("\r\n", "\n")
     added = []
     keys = {k: v for k, v in tfm.items() if k not in p.fm and k not in ("date", "timeline")
-            and not (isinstance(v, list) and any(isinstance(x, dict) for x in v))}
+            and not is_stakeholder_field(k) and not (isinstance(v, list) and any(isinstance(x, dict) for x in v))}
     if keys:
         text = set_frontmatter(text, keys)
         added += [f"{k}:" for k in keys]
@@ -3718,7 +3771,7 @@ def upgrade_profile(root: Path, p: Note) -> tuple:
     theads = _headings(tlines)
     order = []  # (title, lines) of each level-2 template section, in template order
     for k, (i, lvl, title) in enumerate(theads):
-        if lvl == 2:
+        if lvl == 2 and not STAKEHOLDER_HEADING.match(_heading_key(title)):  # an old template's stakeholder sections
             end = next((j for j, l2, _ in theads[k + 1:] if l2 <= 2), len(tlines))
             order.append((title, tlines[i:end]))
     for pos, (title, section) in enumerate(order):
@@ -3818,6 +3871,8 @@ def cmd_promote(args):
         removed.append("links to personal notes, kept as plain text: " + ", ".join(sorted(set(r["personal_links"]))))
     if r["fields"]:
         removed.append("personal-only fields: " + ", ".join(r["fields"]))
+    if r["stakeholder"]:
+        removed.append("stakeholder sections, which stay in Personal/Stakeholders: " + ", ".join(r["stakeholder"]))
     lines = [f"{'Published' if res['created'] else 'Would publish'} {res['source']} -> {res['path']} "
              f"({res['kind']}, {res['layer']} layer)",
              "Removed:" + ("" if removed else " nothing")] + [f"  - {x}" for x in removed]

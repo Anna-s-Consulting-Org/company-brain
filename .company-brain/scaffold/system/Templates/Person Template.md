@@ -44,7 +44,8 @@ Nothing recorded yet. This list fills on the next `brain refresh` from the owner
 Live in Obsidian (owners only; the list above adds contributors and connected systems on `brain refresh`):
 ```dataview
 LIST FROM "Company" OR "Teams"
-WHERE (type = "project" OR type = "objective") AND contains(flat(list(owner)), this.file.link)
+WHERE (type = "project" OR type = "objective")
+  AND (contains(flat(list(owner)), this.file.link) OR contains(string(owner), "[[" + this.file.name + "]]"))
 ```
 
 ## Reports
@@ -56,7 +57,7 @@ LIST FROM "Company/Org/People" WHERE contains(string(manager), this.file.name)
 ```dataview
 TABLE date, meeting_type
 FROM "Company" OR "Teams"
-WHERE type = "meeting" AND contains(attendees, this.file.link)
+WHERE type = "meeting" AND (contains(attendees, this.file.link) OR contains(string(attendees), "[[" + this.file.name + "]]"))
 SORT date DESC
 LIMIT 10
 ```
@@ -66,5 +67,6 @@ Visible only to you: this query reads your own Personal/ folder, which is never 
 ```dataview
 TABLE WITHOUT ID file.link AS "Note", type, relationship, last_interaction, follow_up
 FROM "Personal"
-WHERE (type = "stakeholder" OR type = "one-on-one") AND person = this.file.link
+WHERE (type = "stakeholder" OR type = "one-on-one")
+  AND (person = this.file.link OR contains(string(person), "[[" + this.file.name + "]]") OR person = this.file.name)
 ```

@@ -1716,3 +1716,54 @@ def _apply_fields(fm_lines: List[str], fields: Dict[str, str]) -> List[str]:
     for k, v in remaining.items():
         lines.append(f"{k}: {v}")
     return lines
+
+
+# ---------------------------------------------------------------------------
+# Company Brain: the layer guard on this server's writes. Claude Code's write hook (hooks/layer_guard.py)
+# only sees its own Write and Edit tools, so a write through these tools is checked here instead: a shared
+# note that ends up breaking the layer rules (personal content, stakeholder notes, links to Personal/) is
+# put back the way it was and the call returns an error.
+# ---------------------------------------------------------------------------
+
+def _layer_problems(vault: Path, rel: str) -> List[str]:
+    hooks = Path(__file__).resolve().parents[2] / "hooks"
+    if str(hooks) not in sys.path:
+        sys.path.insert(0, str(hooks))
+    import layer_guard  # noqa: E402  (imports brain.py, the one definition of the rules)
+    path = _resolve_in_vault(vault, rel)
+    return layer_guard.problems_for(vault, path) if path else []
+
+
+def guarded_write(rel: Optional[str], write) -> Dict[str, Any]:
+    """Run save, update or replace; undo it when the note it wrote now breaks the layer rules."""
+    vault = resolve_vault()
+    before_path = _resolve_in_vault(vault, rel) if rel else None
+    before = before_path.read_bytes() if before_path and before_path.is_file() else None
+    result = write()
+    target = result.get("saved") or result.get("updated") or rel
+    if not target or result.get("error"):
+        return result
+    problems = _layer_problems(vault, target)
+    if not problems:
+        return result
+    path = _resolve_in_vault(vault, target)
+    if before is None or path != before_path:
+        path.unlink(missing_ok=True)
+    else:
+        path.write_bytes(before)
+    return {"error": "refused by the Company Brain layer guard, the note was left as it was: " + "; ".join(problems),
+            "path": target}
+
+
+def guarded_move(source: str, destination: str) -> Dict[str, Any]:
+    """move_note, moved back when the note breaks the layer rules where it landed (a Personal note into Company/)."""
+    result = move_note(source, destination)
+    if result.get("error") or "moved" not in result:
+        return result
+    vault = resolve_vault()
+    problems = _layer_problems(vault, destination)
+    if not problems:
+        return result
+    _resolve_in_vault(vault, destination).rename(_resolve_in_vault(vault, source))
+    return {"error": f"refused by the Company Brain layer guard, the note stays at {source}: " + "; ".join(problems),
+            "path": source}

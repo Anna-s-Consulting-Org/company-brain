@@ -11,7 +11,7 @@ The upstream commit these files are synced with is recorded in `.company-brain/u
 | `.company-brain/references/freshness-policy.md` | `references/freshness-policy.md` | none |
 | `.company-brain/references/propagation.md` | `references/write-rules.md` | rewritten for layers |
 | `.company-brain/hooks/validate-ai-first.sh` | `hooks/validate-ai-first.sh` | brain found by `brain.yaml` marker, Company Brain config dir, kanban and engine folders skipped |
-| `.company-brain/mcp/vault/server.py`, `vault_ops.py` | `integrations/obsidian-mcp-server/` | tools renamed `brain_*`, `COMPANY_BRAIN_PATH`, captures in `Personal/Inbox`, skills from `skills/`, two new tools, orphan check also exempts `CLAUDE.md` |
+| `.company-brain/mcp/vault/server.py`, `vault_ops.py` | `integrations/obsidian-mcp-server/` | tools renamed `brain_*`, `COMPANY_BRAIN_PATH`, captures in `Personal/Inbox`, skills from `skills/`, two new tools, orphan check also exempts `CLAUDE.md`, write and move tools run the layer guard and undo a write that breaks it |
 | `.company-brain/scripts/osb_env.py` | `scripts/osb_env.py` | config dir and variable names |
 | `.company-brain/scripts/freshness_lint.py` | `scripts/freshness_lint.py` | none (wired in by `brain.py`, `hooks/freshness_guard.py`) |
 | `.company-brain/scripts/vault_scan.py` | `scripts/vault_scan.py` | none (imported by the freshness lint) |

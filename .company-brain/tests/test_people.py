@@ -363,9 +363,8 @@ def test_brains_with_older_templates_still_work(brain):
 def test_the_shared_hub_names_nobody_for_having_no_work(brain):
     ok(brain, "refresh")
     assert "Sam Lee" not in block(brain / "Company" / "Org" / "Organization.md", "work-map")
-    issues = json.loads(cli(brain, "--json", "check").stdout)
-    assert any(i["path"] == SAM.as_posix() and i["severity"] == "info" and "no current work recorded" in i["message"]
-               for i in issues)
+    issues = [i for i in json.loads(cli(brain, "--json", "check").stdout) if "no current work" in i["message"]]
+    assert len(issues) == 1 and issues[0]["severity"] == "info" and "Sam Lee" in issues[0]["message"]  # one line, not one per person
 
 
 def test_upgrade_keeps_the_profile_spacing(brain):
@@ -385,7 +384,7 @@ def test_check_and_write_hook_refuse_stakeholder_content_on_a_profile(brain):
                    .replace("## Reports", "## How we can help each other\n- I unblock hiring\n\n## Reports"), encoding="utf-8")
     issues = json.loads(cli(brain, "--json", "check").stdout)
     errors = [i["message"] for i in issues if i["path"] == SAM.as_posix() and i["severity"] == "error"]
-    assert any("`relationship:`" in m and "`## How we can help each other`" in m for m in errors), errors
+    assert any("`relationship:`" in m and "`How we can help each other`" in m for m in errors), errors
     assert cli(brain, "check", "--severity", "error").returncode == 1
     event = json.dumps({"tool_input": {"file_path": str(sam)}})
     hook = subprocess.run([sys.executable, str(brain / ".company-brain" / "hooks" / "layer_guard.py")], input=event,
@@ -401,3 +400,83 @@ def test_stakeholder_notes_are_never_shared(brain):
     ok(brain, "refresh")
     shared = "\n".join(p.read_text(encoding="utf-8") for p in (brain / "Company").rglob("*.md"))
     assert "Stakeholder - Sam Lee" not in shared  # no shared note links or names it
+
+
+def test_every_spelling_of_stakeholder_content_is_refused_on_a_profile(brain):
+    sam = brain / SAM
+    text = sam.read_text(encoding="utf-8").replace("works_on: []", "works_on: []\nlast-interaction: 2026-11-01\n"
+                                                    "relationship_strength: strong\nfollow_up_date: 2026-11-20\nRelationship: weak")
+    text = text.replace("## Reports", "## What She Cares About:\n- Margin\n\n### How we help each other\n- Hiring\n\n## Reports")
+    sam.write_text(text.replace("intranet-level facts only", "intranet-level facts only. Relationship strength: strong"),
+                   encoding="utf-8")
+    msg = " ".join(i["message"] for i in json.loads(cli(brain, "--json", "check").stdout)
+                   if i["path"] == SAM.as_posix() and i["severity"] == "error")
+    for needle in ("`last-interaction:`", "`relationship_strength:`", "`follow_up_date:`", "`Relationship:`",
+                   "`What She Cares About:`", "`How we help each other`", "relationship strength or last interaction"):
+        assert needle in msg, needle
+
+
+def test_relational_sections_are_refused_in_any_shared_note(brain):
+    meeting = brain / "Teams" / "Platform" / "Meetings" / "Sync with Sam.md"
+    ok(brain, "new", "meeting", "--layer", "team", "--team", "Platform", "--title", "Sync with Sam", "--name", "Sync with Sam")
+    meeting.write_text(meeting.read_text(encoding="utf-8") + "\n## How we can help each other\n- Sam needs a reviewer\n",
+                       encoding="utf-8")
+    research = brain / "Company" / "Knowledge" / "Admin research.md"
+    ok(brain, "new", "knowledge", "--layer", "company", "--title", "Admin research")
+    research.write_text(research.read_text(encoding="utf-8") + "\n## What they care about\n- Setup time\n", encoding="utf-8")
+    errors = {i["path"] for i in json.loads(cli(brain, "--json", "check").stdout) if i["severity"] == "error"}
+    assert meeting.relative_to(brain).as_posix() in errors
+    assert research.relative_to(brain).as_posix() not in errors  # customer research may say what users care about
+
+
+def test_promote_strips_stakeholder_sections_and_fields(brain):
+    note = brain / "Personal" / "Notes" / "About Sam.md"
+    note.parent.mkdir(parents=True, exist_ok=True)
+    note.write_text(f"---\ndate: {TODAY}\ntype: knowledge\ntags: [knowledge]\nai-first: true\nlayer: personal\n"
+                    "relationship: strong\n---\n\n# About Sam\n\n## For future agent\nNotes.\n\n## Context\n- Platform lead\n\n"
+                    "## How we can help each other\n- I owe Sam a hiring favour\n", encoding="utf-8")
+    dry = ok(brain, "promote", "Personal/Notes/About Sam.md", "--to", "company")
+    assert "stakeholder sections, which stay in Personal/Stakeholders: How we can help each other" in dry
+    ok(brain, "promote", "Personal/Notes/About Sam.md", "--to", "company", "--yes")
+    shared = (brain / "Company" / "Knowledge" / "About Sam.md").read_text(encoding="utf-8")
+    assert "hiring favour" not in shared and "relationship:" not in shared and "Platform lead" in shared
+
+
+def test_mcp_writes_get_the_layer_guard(brain, monkeypatch):
+    monkeypatch.setenv("COMPANY_BRAIN_PATH", str(brain))
+    sys.path.insert(0, str(ENGINE / "mcp" / "vault"))
+    import vault_ops
+    before = (brain / SAM).read_text(encoding="utf-8")
+    res = vault_ops.guarded_write(SAM.as_posix(), lambda: vault_ops.update_note(SAM.as_posix(), set_fields={"relationship": "strong"}))
+    assert "refused by the Company Brain layer guard" in res["error"] and (brain / SAM).read_text(encoding="utf-8") == before
+    ok(brain, "new", "stakeholder", "--title", "Sam Lee")
+    src, dst = "Personal/Stakeholders/Stakeholder - Sam Lee.md", "Company/Org/People/Stakeholder - Sam Lee.md"
+    res = vault_ops.guarded_move(src, dst)
+    assert "error" in res and (brain / src).is_file() and not (brain / dst).exists()
+    ok_write = vault_ops.guarded_write(SAM.as_posix(), lambda: vault_ops.update_note(SAM.as_posix(), set_fields={"location": "Lisbon"}))
+    assert "error" not in ok_write and "location: Lisbon" in (brain / SAM).read_text(encoding="utf-8")
+
+
+def test_upgrade_never_adds_stakeholder_sections_from_an_old_template(brain):
+    tpl = brain / "Templates" / "Person Template.md"
+    tpl.write_text(tpl.read_text(encoding="utf-8").replace("works_on: []", "works_on: []\nrelationship: TBD")
+                   .replace("## Reports", "## What they care about\n- TBD\n\n## Reports"), encoding="utf-8")
+    legacy = brain / "Company" / "Org" / "People" / "Old Timer.md"
+    legacy.write_text(f"---\ndate: {TODAY}\ntype: person\ntags: [person]\nai-first: true\nlayer: company\n---\n\n"
+                      "# Old Timer\n\n## For future agent\nOld.\n", encoding="utf-8")
+    ok(brain, "person", "upgrade", "--yes")
+    text = legacy.read_text(encoding="utf-8")
+    assert "## What they care about" not in text and "relationship:" not in text and "## Works on" in text
+
+
+def test_reconfirming_fills_a_missing_start_date(brain):
+    works_on(brain, "Sam Lee", "Onboarding revamp", role="lead")
+    assert fm(brain / SAM)["works_on"][0]["from"] == "TBD"
+    out = ok(brain, "person", "works-on", "Sam Lee", "--project", "Onboarding revamp", "--role", "lead",
+             "--source", "Linear project ONB", "--confidence", "high", "--since", "2026-09-01")
+    assert out.startswith("confirmed, start date added") and fm(brain / SAM)["works_on"][0]["from"] == "2026-09-01"
+
+
+def test_profile_queries_match_unresolved_links_too():
+    for name in ("Person Template.md", "Project Template.md"):
+        assert '"[[" + this.file.name + "]]"' in (BRAIN / "Templates" / name).read_text(encoding="utf-8"), name

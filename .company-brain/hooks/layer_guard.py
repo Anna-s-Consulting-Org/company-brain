@@ -42,6 +42,32 @@ def stems(folder: Path, exclude_top: str = "") -> set:
     return out
 
 
+def problems_for(root: Path, path: Path) -> list:
+    """Why a note at `path` breaks the layer rules, or [] (also used by the brain MCP server's writes)."""
+    rel = path.resolve().relative_to(root.resolve()).as_posix()
+    if not rel.startswith(("Company/", "Teams/")) or not path.is_file():
+        return []
+    note = brain.Note(root.resolve(), path.resolve())
+    problems = []
+    if str(note.fm.get("layer") or "") == "personal":
+        problems.append("frontmatter says `layer: personal` but the note is in a shared folder")
+    if note.type in brain.PERSONAL_ONLY_TYPES:
+        problems.append(f"`type: {note.type}` notes are personal and live in Personal/")
+    if re.search(r"^## Private\s*$", note.body, re.M):
+        problems.append("it contains a `## Private` section; private content must stay in Personal/")
+    leaks = brain.stakeholder_leaks(note)
+    if leaks:
+        problems.append(brain.stakeholder_leak_message(note, leaks))
+    personal = stems(root / "Personal")
+    shared = stems(root, exclude_top="Personal")
+    leaked = sorted({t for t, _, _ in note.links()
+                     if t.split("/")[-1].lower() in personal and t.split("/")[-1].lower() not in shared})
+    if leaked:
+        problems.append("it links to personal notes: " + ", ".join(f"[[{t}]]" for t in leaked)
+                        + " (rewrite as plain text, or promote the target with /company-brain:promote)")
+    return problems
+
+
 def main() -> None:
     try:
         payload = json.load(sys.stdin)
@@ -57,28 +83,10 @@ def main() -> None:
     root = find_root(path.resolve())
     if not root:
         return
-    rel = path.resolve().relative_to(root).as_posix()
-    if not rel.startswith(("Company/", "Teams/")):
-        return
-    note = brain.Note(root, path.resolve())
-    problems = []
-    if str(note.fm.get("layer") or "") == "personal":
-        problems.append("frontmatter says `layer: personal` but the note is in a shared folder")
-    if re.search(r"^## Private\s*$", note.body, re.M):
-        problems.append("it contains a `## Private` section; private content must stay in Personal/")
-    leaks = brain.stakeholder_leaks(note)
-    if leaks:
-        problems.append("it is a shared profile carrying stakeholder content (" + ", ".join(leaks)
-                        + "); that belongs in Personal/Stakeholders/Stakeholder - " + note.name + ".md")
-    personal = stems(root / "Personal")
-    shared = stems(root, exclude_top="Personal")
-    leaked = sorted({t for t, _, _ in note.links()
-                     if t.split("/")[-1].lower() in personal and t.split("/")[-1].lower() not in shared})
-    if leaked:
-        problems.append("it links to personal notes: " + ", ".join(f"[[{t}]]" for t in leaked)
-                        + " (rewrite as plain text, or promote the target with /company-brain:promote)")
+    problems = problems_for(root, path)
     if not problems:
         return
+    rel = path.resolve().relative_to(root).as_posix()
     msg = (f"Company Brain layer guard: {rel} is shared with the team or company, but "
            + "; and ".join(problems) + ". Fix it now. Rule: links point up the stack "
            "(personal to team to company), never down.")

@@ -48,7 +48,8 @@ People profiles that record work on this project (from connected systems, via `b
 TABLE WITHOUT ID file.link AS "Person", w.role AS "Role", w.confidence AS "Confidence", w.checked AS "As of"
 FROM "Company/Org/People"
 FLATTEN works_on AS w
-WHERE type = "person" AND w.project = this.file.link AND (!w.until OR w.until = "present")
+WHERE type = "person" AND (!w.until OR w.until = "present")
+  AND (w.project = this.file.link OR string(w.project) = "[[" + this.file.name + "]]" OR w.project = this.file.name)
 ```
 
 ## Plan and milestones
