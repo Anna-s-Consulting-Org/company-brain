@@ -565,6 +565,7 @@ def scaffold_system_sources(root: Path) -> dict:
     """rel path -> vault file, for everything new brains get from scaffold/system."""
     files = [root / n for n in ("CLAUDE.md", "Home.md", ".gitignore", ".freshness.json", ".vault-config.json")]
     files += sorted((root / "System").rglob("*.md")) + sorted((root / "Templates").rglob("*.md"))
+    files += sorted((root / ".claude" / "commands").glob("*.md"))  # /brain-<name> slash commands
     obsidian = root / ".obsidian"
     files += sorted(p for p in obsidian.glob("*.json") if not p.name.startswith("workspace"))
     files += sorted(obsidian.glob("plugins/*/data.json"))
@@ -640,7 +641,7 @@ def watch_install(root: Path, interval: int) -> dict:
         if p.stem != label and not Path(args[1]).exists():
             _watch_unload(p.stem)
             stale.append(p.stem)
-    dirs = [root / d for d in ("System", "Templates") if (root / d).is_dir()]
+    dirs = [root / d for d in ("System", "Templates", ".claude/commands") if (root / d).is_dir()]
     dirs += sorted(p for d in list(dirs) for p in d.rglob("*") if p.is_dir())
     paths = [root / n for n in ("CLAUDE.md", "Home.md", ".gitignore", ".obsidian")] + dirs
     log = Path.home() / "Library" / "Logs" / "company-brain" / f"{label}.log"
@@ -2308,7 +2309,7 @@ def main(argv=None):
     p.add_argument("--sharing", choices=["git", "drive", "local"])
     p.set_defaults(fn=cmd_init)
 
-    p = sub.add_parser("scaffold-sync", help="copy System/, Templates/, CLAUDE.md, Home.md, and vault settings "
+    p = sub.add_parser("scaffold-sync", help="copy System/, Templates/, CLAUDE.md, Home.md, slash commands, and vault settings "
                                              "into the scaffold new brains start from")
     g = p.add_mutually_exclusive_group()
     g.add_argument("--check", action="store_true", help="report drift only; exit 1 when out of sync")

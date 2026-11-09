@@ -75,6 +75,36 @@ def test_every_skill_has_matching_front_matter():
         assert head and head.group(1) == name and len(head.group(2)) > 40, name
 
 
+# Project slash commands: Claude Code opened in the brain gets /brain-<name> without installing the
+# plugin. Each command is a thin wrapper that reads the skill's SKILL.md, so the two cannot drift.
+COMMANDS = BRAIN / ".claude" / "commands"
+COMMAND_ALIASES = {"task": "board"}  # /brain-task is the board skill's add-a-task step
+
+
+def command_files() -> dict:
+    return {p.stem[len("brain-"):]: p for p in sorted(COMMANDS.glob("brain-*.md"))}
+
+
+def test_every_skill_has_a_project_slash_command():
+    cmds = command_files()
+    assert sorted(n for n in cmds if n not in COMMAND_ALIASES) == skill_names()
+    for name, path in cmds.items():
+        skill = COMMAND_ALIASES.get(name, name)
+        text = path.read_text(encoding="utf-8")
+        head = re.match(r'---\ndescription: "([^"\n]{20,120})"\n(argument-hint: "[^"\n]+"\n)?---\n', text)
+        assert head, f"{path.name}: front matter must be a quoted description (and optional argument-hint)"
+        assert f".company-brain/skills/{skill}/SKILL.md" in text and "$ARGUMENTS" in text, path.name
+        assert (ENGINE / "skills" / skill / "SKILL.md").is_file(), path.name
+        assert text.isascii(), f"{path.name}: ASCII only"
+
+
+def test_new_brains_get_the_slash_commands():
+    sys.path.insert(0, str(SCRIPTS))
+    import brain as brain_cli
+    sources = brain_cli.scaffold_system_sources(BRAIN)
+    assert all(f".claude/commands/{p.name}" in sources for p in command_files().values())
+
+
 def test_scripts_named_in_skills_exist():
     missing = []
     for name in skill_names():

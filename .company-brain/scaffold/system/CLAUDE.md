@@ -98,9 +98,9 @@ Kinds for `new`: objective, annual-plan, quarterly-plan, strategy, playing-to-wi
 
 ## 4. Skills
 
-Run as `/company-brain:<name>` or by asking in plain words. Catalog with outputs: `System/Skills.md`.
+Run as `/brain-<name>` (project commands in `.claude/commands/`, no install needed), as `/company-brain:<name>` with the plugin installed, or by asking in plain words. Each `/brain-<name>` command reads `.company-brain/skills/<name>/SKILL.md`; `/brain-task` is the board skill's add-a-task step. Catalog with outputs: `System/Skills.md`.
 
-setup, context, daily, weekly, team-weekly, okr, plan, strategy, vpc, ost, prioritize, roadmap, org, project, meeting, decide, board, promote, connect, ingest, health, export, checkin, reconcile, crew.
+setup, context, daily, weekly, team-weekly, okr, plan, strategy, vpc, ost, prioritize, roadmap, org, project, meeting, decide, board, promote, connect, ingest, health, export, checkin, reconcile, crew, save, capture, find, recap, challenge.
 
 Method notes for every framework (Value Proposition Canvas, Opportunity Solution Tree, Effort-Impact Matrix with RICE, OKRs, Strategy Kernel, Playing to Win, Business Model Canvas, Now-Next-Later Roadmap): `System/Frameworks/`. Read the relevant one before applying a framework.
 

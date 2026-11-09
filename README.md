@@ -28,7 +28,8 @@ It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian
 
 | Surface | Read | Write | Notes |
 |---|---|---|---|
-| Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 25 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:checkin`, `:reconcile`, `:prioritize`, `:roadmap`, `:meeting`, and more |
+| Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 30 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:checkin`, `:reconcile`, `:prioritize`, `:roadmap`, `:meeting`, `:save`, `:find`, and more |
+| Claude Code opened in this folder, no plugin | yes | yes | the same skills as project slash commands: `/brain-daily`, `/brain-weekly`, `/brain-save`, `/brain-find`, `/brain-task`, ... (`.claude/commands/`); the session-start and write hooks need the plugin |
 | Claude Desktop chat | yes | yes | through the brain MCP server (see `System/Setup.md`) |
 | claude.ai Project | yes | no | read-only pack made by `/company-brain:export` (company and team layers only) |
 
@@ -59,6 +60,7 @@ The top diagram shows how inputs, the Claude plugin and the three layers connect
    claude plugin install company-brain@company-brain
    ```
    Restart, open Claude in this folder, and run `/company-brain:setup`.
+   Without the plugin, Claude Code opened in this folder still has every skill as a project command: `/brain-setup`, `/brain-daily`, `/brain-save`, and the rest (type `/brain-` to list them).
 3. **Sources**: `/company-brain:connect` mounts Desktop or Google Drive folders under `Sources/` (read-only symlinks).
 4. **Rhythm**: `/company-brain:daily` each morning, `/company-brain:weekly` on Fridays, `/company-brain:plan quarterly` each quarter.
 

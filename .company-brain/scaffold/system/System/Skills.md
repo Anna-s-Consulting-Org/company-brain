@@ -9,7 +9,7 @@ layer: company
 # Skills
 
 ## For future agent
-This note is the catalog of Company Brain skills: what each does and where it writes. Skills live in `.company-brain/skills/<name>/SKILL.md` and run in Claude Code, the Claude desktop app, and Cowork as `/company-brain:<name>`, or automatically when a request matches their description.
+This note is the catalog of Company Brain skills: what each does and where it writes. Skills live in `.company-brain/skills/<name>/SKILL.md`. In Claude Code opened in the brain folder they run as `/brain-<name>` (project commands in `.claude/commands/`, no install needed); with the plugin installed they also run as `/company-brain:<name>` in Claude Code, the Claude desktop app, and Cowork, or automatically when a request matches their description.
 
 ## Catalog
 | Skill | Does | Writes to |
@@ -39,12 +39,20 @@ This note is the catalog of Company Brain skills: what each does and where it wr
 | `/company-brain:checkin` | ask me whether the old notes I own still hold, and save the news | the notes I own, `.checkin.json` (local) |
 | `/company-brain:reconcile` | find contradictions between notes, prove each with verbatim quotes, resolve or flag | the notes concerned, decision records for open conflicts |
 | `/company-brain:crew` | one logbook shared by Claude Code, Codex, Cursor and Grok Bot | `Personal/Crew/` |
+| `/company-brain:save` | save everything worth keeping from the conversation, each item in the right note and layer | the notes each item belongs in, today's daily note |
+| `/company-brain:capture` | capture an idea in seconds | `Personal/Notes/Idea - <Title>`, today's daily note |
+| `/company-brain:find` | search the brain, results with context and grouped by type | reads only |
+| `/company-brain:recap` | summarize today, a week, a month or a quarter | reads only (saves on request) |
+| `/company-brain:challenge` | red-team an idea or plan against strategy, decisions and experiments | today's daily note; a report on request |
 
 ## How to run them
-- **Claude Code / desktop app / Cowork**: type `/company-brain:weekly` (or any name above), or ask in plain words ("prepare my 1:1 with Sam", "prioritize the platform solutions").
+- **Claude Code in this folder, no install**: type `/brain-weekly` (or `/brain-<name>` for any name above). The commands live in `.claude/commands/` and each one reads the skill's `SKILL.md`. `/brain-task <task>` adds one card to your board (the board skill's add step).
+- **Claude Code / desktop app / Cowork with the plugin**: type `/company-brain:weekly` (or any name above), or ask in plain words ("prepare my 1:1 with Sam", "prioritize the platform solutions").
 - **Inside Obsidian**: run Claude in the vault folder (a terminal in this folder, or an Obsidian plugin that embeds Claude Code); the brain's `CLAUDE.md` and the plugin load automatically. Templates in `Templates/` work with Templater without Claude.
 - **From the filesystem**: the `brain` CLI does the deterministic parts without Claude: `./brain period`, `./brain new objective ...`, `./brain promote <note> --to team` (dry run, then `--yes`), `./brain refresh`, `./brain check`, `./brain connect`, `./brain export-pack`, `./brain upstream-check` (changes in obsidian-second-brain to the files Company Brain borrowed). Run `./brain --help`.
 - **Claude Desktop chat (not Cowork)**: add the brain MCP server (see [[Setup]]); its `brain_list_skills` and `brain_get_skill` tools expose most skills as playbooks.
 
 ## Relationship to obsidian-second-brain
 Company Brain vendors the AI-first rules, the write validator, and the vault MCP server from [[obsidian-second-brain]] and adds its own skills. The obsidian-second-brain commands (research, ingest of web sources, synthesis) still work on your personal vault; do not point them at this brain.
+
+Commands taken over from obsidian-second-brain, adapted to the layers: `obsidian-save` is `save`, `obsidian-capture` is `capture`, `obsidian-find` is `find`, `obsidian-recap` is `recap`, `obsidian-challenge` is `challenge`, `obsidian-task` is `/brain-task`. Its daily, board, checkin, reconcile, health, ingest, export, decide, project and crew commands already have a skill here; `obsidian-world` is `context`, `obsidian-init` is `setup`, `obsidian-person` is `org` and `obsidian-review` is `weekly`. The rest (web, X, YouTube and podcast research, codebase and git notes, Telegram catch-up, personal thinking tools) are for a personal vault and are not part of Company Brain.
