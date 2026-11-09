@@ -26,7 +26,7 @@ This is the company-layer hub of the {{COMPANY}} Company Brain: the entry point 
 - [[Company Roadmap]] - now, next, later
 
 ## Organization
-- [[Organization]] - [[Org Chart]], [[Teams]], people profiles
+- [[Organization]] - [[Org Chart]], [[Teams]], people profiles, and the [[People Directory]] of everyone we work with (our people, customers, partners, vendors)
 
 ## Shared work
 - [[Company Projects]] | [[Company Meetings]] | [[Company Decisions]] | [[Company Knowledge]]

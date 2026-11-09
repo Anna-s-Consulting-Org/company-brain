@@ -1328,6 +1328,8 @@ KINDS = {
     "decision": ("Decision Template.md", "company", "Decisions"),
     "knowledge": ("Knowledge Note Template.md", "personal", "Knowledge"),
     "person": ("Person Template.md", "company", "Org/People"),
+    "company": ("Company Template.md", "company", "Org/Companies"),   # an organisation we work with
+    "contact": ("Contact Template.md", "company", "Org/Contacts"),    # a person at one of them
     "stakeholder": ("Stakeholder Template.md", "personal", "Stakeholders"),
     "one-on-one": ("One-on-One Template.md", "personal", "1-1s"),
     "daily": ("Daily Note Template.md", "personal", "Daily"),
@@ -1401,13 +1403,13 @@ def create_note(root: Path, kind: str, title: str, layer: str | None = None, tea
     values = dict(values or {})
     if layer == "personal":
         sub = PERSONAL_SUBFOLDER.get(kind, sub)
-    if kind == "person":
-        layer, team, sub = "company", None, "Org/People"
+    if kind in ("person", "company", "contact"):  # the org, its people and its partners are company-layer
+        layer, team, sub = "company", None, KINDS[kind][2]
     if kind == "stakeholder":
         # my view of a person is always personal; the shared profile is the person note
         layer, team, sub = "personal", None, "Stakeholders"
         if not values.get("person"):
-            prof = resolve_person(scan(root), title)
+            prof = resolve_person(scan(root), title, pool="all")
             values["person"] = f"[[{prof.name}]]" if prof else title
             title = prof.name if prof else title  # Stakeholder - <Full Name>, even when called by an alias
     folder = layer_root(root, layer, team) / sub
@@ -1486,6 +1488,8 @@ NOT_PROMOTABLE = {
                    "contact, and work facts belong on the shared profile (the org skill)",
     "objective": "a personal goal becomes a team objective through the okr skill, with the team lead",
     "person": "people profiles already live in Company/Org/People",
+    "company": "org pages already live in Company/Org/Companies",
+    "contact": "contact cards already live in Company/Org/Contacts",
 }
 TYPE_KIND = {"plan": "quarterly-plan"}
 UPDATE_SECTIONS = {"highlights": "Highlights", "kr progress": "KR progress",
@@ -2154,7 +2158,7 @@ def is_profile(n: Note) -> bool:
 def stakeholder_leaks(n: Note) -> list:
     """Stakeholder content in a shared note: any stakeholder field, heading or relationship prose on a
     profile; the distinctly relational heading (how we can help each other) in any other shared note."""
-    if n.folder_layer not in ("company", "team"):
+    if n.folder_layer not in ("company", "team") or n.type == "company":
         return []
     heads = [t for _, _, t in _headings(n.body.split("\n"))]
     if not is_profile(n):
@@ -2176,6 +2180,32 @@ def profiles(notes) -> list:
     return sorted([n for n in notes if n.type == "person" and n.rel.startswith(PEOPLE_DIR)], key=lambda n: n.name)
 
 
+COMPANIES_DIR = "Company/Org/Companies/"
+CONTACTS_DIR = "Company/Org/Contacts/"
+ORG_KINDS = ("customer", "partner", "vendor", "prospect", "investor", "other")
+ORG_KIND_TITLES = {"customer": "Customers", "partner": "Partners", "vendor": "Vendors", "prospect": "Prospects",
+                   "investor": "Investors", "other": "Other organisations"}
+
+
+def contacts(notes) -> list:
+    """People outside the company we work with: type person in Company/Org/Contacts (never in the org chart)."""
+    return sorted([n for n in notes if n.type == "person" and n.rel.startswith(CONTACTS_DIR)], key=lambda n: n.name)
+
+
+def companies(notes) -> list:
+    """Org pages of the organisations we work with (customers, partners, vendors ...)."""
+    return sorted([n for n in notes if n.type == "company" and n.folder_layer == "company"], key=lambda n: n.name)
+
+
+def resolve_company(notes, ref):
+    """The org page a name or alias names, or None."""
+    key = _ref_key(ref)
+    hits = [c for c in companies(notes) if key and key in project_keys(c)]
+    if len(hits) > 1:
+        raise SystemExit(f"error: {ref!r} matches several org pages ({', '.join(c.rel for c in hits)}); pass the exact name")
+    return hits[0] if hits else None
+
+
 def person_keys(p: Note) -> set:
     """Every identifier a profile answers to: its name, aliases, work email, and handles (system:id)."""
     keys = {p.name.lower()}
@@ -2187,10 +2217,12 @@ def person_keys(p: Note) -> set:
     return keys
 
 
-def resolve_person(notes, ref):
-    """The profile a name, alias, email or handle identifies, or None. Ambiguity is an error, never a guess."""
+def resolve_person(notes, ref, pool: str = "profiles"):
+    """The profile (pool="all": or contact card) a name, alias, email or handle identifies, or None.
+    Ambiguity is an error, never a guess."""
     key = _ref_key(ref)
-    hits = [p for p in profiles(notes) if key and key in person_keys(p)]
+    people = profiles(notes) + (contacts(notes) if pool == "all" else [])
+    hits = [p for p in people if key and key in person_keys(p)]
     if len(hits) > 1:
         raise SystemExit(f"error: {ref!r} matches several profiles ({', '.join(p.name for p in hits)}); "
                          "pass the full name, or a handle only one of them has")
@@ -2442,6 +2474,159 @@ def place_works_on(text: str, content: str) -> str:
     return head + body.rstrip() + "\n\n" + "\n".join(sect)
 
 
+# ---------------------------------------------------------------------------
+# Organisations we work with: the People Directory, org pages, People.base
+# ---------------------------------------------------------------------------
+
+PEOPLE_DIRECTORY = "Company/Org/People Directory.md"
+PEOPLE_BASE = "Company/Org/People.base"
+PEOPLE_BASE_TEMPLATE = ENGINE / "references" / "bases" / "people.base.template"  # vendored from upstream
+BASE_STAMP = ("# Generated by brain refresh from .company-brain/references/bases/people.base.template "
+              "(obsidian-second-brain) with Company Brain's folders and columns. Edit the overlay in brain.py, "
+              "not this file; an edit made in Obsidian is kept. sha256:{digest}")
+# used only when the vendored template no longer has the shape the overlay expects
+DEFAULT_PEOPLE_BASE = {
+    "filters": {"and": ['file.inFolder("{{PEOPLE_FOLDER}}")', 'file.ext == "md"', 'note.type == "person"']},
+    "properties": {"role": {"displayName": "Role"}},
+    "views": [{"type": "table", "name": "All", "order": ["file.basename", "role", "company", "updated"]}],
+}
+
+
+def _base_scalar(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return str(v)
+    s = "" if v is None else str(v)
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", s) and s.lower() not in ("true", "false", "yes", "no", "null"):
+        return s
+    return "'" + s.replace("'", "''") + "'"
+
+
+def dump_yaml(obj, indent: int = 0) -> list:
+    """Nested maps and lists as block YAML (single-quoted strings), in the shape parse_yaml reads back."""
+    pad, out = " " * indent, []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, (dict, list)) and v:
+                out += [f"{pad}{k}:"] + dump_yaml(v, indent + 2)
+            elif isinstance(v, (dict, list)):
+                out.append(f"{pad}{k}: {'{}' if isinstance(v, dict) else '[]'}")
+            else:
+                out.append(f"{pad}{k}: {_base_scalar(v)}")
+    else:
+        for item in obj:
+            if isinstance(item, (dict, list)) and item:
+                sub = dump_yaml(item, indent + 2)
+                out += [f"{pad}- " + sub[0].lstrip()] + sub[1:] if isinstance(item, dict) else [f"{pad}-"] + sub
+            else:
+                out.append(f"{pad}- {_base_scalar(item)}")
+    return out
+
+
+def people_base(company_name: str, template: str | None = None) -> tuple:
+    """(People.base text, warning or None): upstream's people base with our overlay. The overlay points it at
+    Company/Org/People and Company/Org/Contacts, adds an Organization column (ours for colleagues, `company:`
+    for contacts) and Team. Everything else (formulas, columns, views) comes from upstream, so taking a newer
+    template with `brain upstream-check --copy` and running refresh brings upstream's changes in."""
+    warning = None
+    try:
+        raw = template if template is not None else PEOPLE_BASE_TEMPLATE.read_text(encoding="utf-8")
+        base = parse_yaml(raw)
+        ands = base["filters"]["and"]
+        if not (isinstance(ands, list) and any("{{PEOPLE_FOLDER}}" in str(f) for f in ands)
+                and isinstance(base.get("views"), list) and base["views"]):
+            raise ValueError("no folder filter or no views")
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        warning = (f"the vendored people.base.template no longer has the shape the People.base overlay expects "
+                   f"({exc}); People.base uses Company Brain's built-in default until the overlay in brain.py is updated")
+        base = json.loads(json.dumps(DEFAULT_PEOPLE_BASE))
+    folders = {"or": ['file.inFolder("Company/Org/People")', 'file.inFolder("Company/Org/Contacts")']}
+    base["filters"]["and"] = [folders if "{{PEOPLE_FOLDER}}" in str(f) else f for f in base["filters"]["and"]]
+    if not isinstance(base.get("formulas"), dict):
+        base["formulas"] = {}
+    base["formulas"]["organization"] = 'if(company, company, "{}")'.format(str(company_name).replace('"', "'"))
+    if not isinstance(base.get("properties"), dict):
+        base["properties"] = {}
+    base["properties"]["formula.organization"] = {"displayName": "Organization"}
+    base["properties"].setdefault("team", {"displayName": "Team"})
+    for view in base["views"]:
+        if not isinstance(view, dict):
+            continue
+        order = ["formula.organization" if c == "company" else c for c in as_list(view.get("order"))]
+        if "formula.organization" not in order:
+            order.insert(min(1, len(order)), "formula.organization")
+        if "team" not in order:
+            order.insert(order.index("formula.organization") + 1, "team")
+        view["order"] = order
+        sizes = view.get("columnSize")
+        if isinstance(sizes, dict) and "company" in sizes:
+            sizes["formula.organization"] = sizes.pop("company")
+    body = "\n".join(dump_yaml(base)) + "\n"
+    return BASE_STAMP.format(digest=hashlib.sha256(body.encode()).hexdigest()[:16]) + "\n" + body, warning
+
+
+def write_people_base(root: Path, company_name: str) -> str:
+    path = root / PEOPLE_BASE
+    text, _ = people_base(company_name)
+    if path.exists():
+        cur = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+        first, _, rest = cur.partition("\n")
+        m = re.search(r"sha256:([0-9a-f]{16})", first)
+        if not m or hashlib.sha256(rest.encode()).hexdigest()[:16] != m.group(1):
+            return "kept (edited in Obsidian; delete it to regenerate)"
+        if cur == text:
+            return "unchanged"
+    status = "updated" if path.exists() else "created"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return status
+
+
+def _org_of(card: Note, orgs: list):
+    target = _real_link(card.get("company"))
+    return next((o for o in orgs if target and target.lower() in project_keys(o)), None), target
+
+
+def render_org_people(org: Note, cards: list, orgs: list) -> str:
+    owner = _real_link(org.get("owner"))
+    lines = [f"Owner on our side: {f'[[{owner}]]' if owner else 'TBD'}", ""]
+    mine = [c for c in cards if _org_of(c, orgs)[0] is org]
+    for c in mine:
+        co = _real_link(c.get("owner"))
+        lines.append(f"- [[{c.name}]] - {c.get('role') or 'role TBD'}" + (f" (relationship owner [[{co}]])" if co else ""))
+    if not mine:
+        lines.append(f'No contacts yet. Add one with `brain person add "<Full Name>" --company "{org.name}"`.')
+    return "\n".join(lines)
+
+
+def render_people_directory(notes, company_name: str) -> str:
+    """Everyone the company works with, by organisation: ours first, then customers, partners, vendors ..."""
+    people, cards, orgs = profiles(notes), contacts(notes), companies(notes)
+
+    def person(n, extra=""):
+        return f"- [[{n.name}]] - {n.get('role') or 'role TBD'}{extra}" + (" (left)" if _norm(n.get("status")) == "left" else "")
+    lines = [f"### {company_name} ([[Organization]])", ""]
+    lines += [person(p, f", [[{_real_link(p.get('team'))}]]" if _real_link(p.get("team")) else "") for p in people] \
+        or ["- No people yet. Add profiles with `/company-brain:org` or `brain person add`."]
+    kind_of = {o.name: (_norm(o.get("kind")) if _norm(o.get("kind")) in ORG_KINDS else "") for o in orgs}
+    for kind in ORG_KINDS + ("",):
+        sel = [o for o in orgs if kind_of[o.name] == kind]
+        if not sel:
+            continue
+        lines += ["", f"### {ORG_KIND_TITLES.get(kind, 'Kind not set yet')}", ""]
+        for o in sel:
+            owner = _real_link(o.get("owner"))
+            lines.append(f"- [[{o.name}]]" + (f" (owner on our side [[{owner}]])" if owner else "")
+                         + (f" ({o.get('status')})" if _norm(o.get("status")) not in ("", "active") else ""))
+            lines += ["  " + person(c) for c in cards if _org_of(c, orgs)[0] is o]
+    loose = [(c, _org_of(c, orgs)[1]) for c in cards if not _org_of(c, orgs)[0]]
+    if loose:
+        lines += ["", "### No org page yet", ""]
+        lines += [person(c, f", {t}" if t else ", organisation TBD") for c, t in loose]
+    return "\n".join(lines)
+
+
 def render_entries(key: str, entries: list) -> list:
     """Frontmatter lines for a list of maps (works_on:), in the shape parse_yaml reads back."""
     if not entries:
@@ -2556,7 +2741,8 @@ def check(root: Path, notes=None) -> list:
                 add("error", n, f"leak: shared note links to personal note [[{target}]]")
     for n in notes:
         if n.rel not in inbound and n.rel not in EXEMPT_FILES and n.folder_layer in ("company", "team") \
-                and n.type not in ("hub", "okr-tree", "prioritization", "org-chart") and "kanban-plugin" not in n.fm:
+                and n.type not in ("hub", "okr-tree", "prioritization", "org-chart", "people-directory") \
+                and "kanban-plugin" not in n.fm:
             add("info", n, "orphan: no other note links here")
     threshold = works_on_threshold(root)
     owners = {}
@@ -2584,6 +2770,18 @@ def check(root: Path, notes=None) -> list:
         add("info", None, f"{len(idle)} profile(s) show no current work as of the last `brain refresh`: "
                           + ", ".join(idle[:10]) + (", ..." if len(idle) > 10 else "")
                           + ". Look in connected systems with the org skill's works-on rules")
+    orgs = companies(notes)
+    for p in profiles(notes):
+        if _org_of(p, orgs)[0]:
+            add("warn", p, f"`company:` names {_real_link(p.get('company'))}, another organisation: a person there is a "
+                           "contact card in Company/Org/Contacts (`brain person add ... --company`), not a profile, "
+                           "or they would join our org chart and teams")
+    for o in orgs:
+        if _norm(o.get("kind")) not in ORG_KINDS + ("tbd", ""):
+            add("info", o, f"kind {o.get('kind')!r}; expected one of {', '.join(ORG_KINDS)}")
+    base_warning = people_base(who["company"])[1]
+    if base_warning:
+        add("warn", None, base_warning)
     for k, names in sorted(owners.items()):
         if len(names) > 1:
             add("warn", None, f"identifier {k!r} is on several profiles ({', '.join(names)}): "
@@ -3282,7 +3480,7 @@ EXPORT_GROUPS = [
     ("01 Company overview", lambda n: n.folder_layer == "company" and n.type in ("mission", "vision", "values", "hub") and n.rel.count("/") == 1),
     ("02 Strategy", lambda n: n.folder_layer in ("company", "team") and n.type in ("strategy", "vpc", "bmc", "plan")),
     ("03 OKRs", lambda n: n.folder_layer in ("company", "team") and n.type in ("objective", "okr-tree")),
-    ("04 Org and teams", lambda n: n.folder_layer in ("company", "team") and n.type in ("person", "team", "org-chart")),
+    ("04 Org and teams", lambda n: n.folder_layer in ("company", "team") and n.type in ("person", "team", "org-chart", "company", "people-directory")),
     ("05 Discovery and roadmap", lambda n: n.folder_layer in ("company", "team") and n.type in OST_TYPES + ("prioritization",)),
     ("06 Projects", lambda n: n.folder_layer in ("company", "team") and n.type == "project" and str(n.get("status") or "") not in ("archived",)),
     ("07 Decisions", lambda n: n.folder_layer in ("company", "team") and n.type == "decision"),
@@ -3599,8 +3797,42 @@ def _values_from_sets(sets) -> dict:
     return values
 
 
+def add_contact(root: Path, name: str, company: str, role: str | None = None, owner: str | None = None,
+                email: str | None = None, aliases=None, handles=None, kind: str | None = None) -> dict:
+    """A contact card for someone at another organisation, with a stub org page when there is none yet."""
+    notes = scan(root)
+    org = resolve_company(notes, company)
+    created_org = None
+    if not org:
+        org_name = link_target(company) if "[[" in company else company.strip()
+        created_org = create_note(root, "company", org_name, name=org_name,
+                                  values={"kind": _norm(kind) if _norm(kind) in ORG_KINDS else "TBD", "owner": "TBD"})
+        if created_org.get("reason"):
+            raise SystemExit(f"error: {created_org['path']} already has the name {org_name!r} and is not an org page")
+        org = resolve_company(scan(root), org_name)
+    values = {"role": role or "TBD", "company": f"[[{org.name}]]", "owner": f"[[{link_target(owner)}]]" if owner else "TBD"}
+    if email:
+        values["email"] = email
+    if aliases:
+        values["aliases"] = aliases
+    if handles:
+        values["handles"] = handles
+    res = create_note(root, "contact", name, values=values, name=name)
+    res["company"] = org.rel
+    res["company_created"] = bool(created_org and created_org.get("created"))
+    res["kind"] = _norm(org.get("kind")) or "TBD"
+    return res
+
+
 def cmd_person_add(args):
     root = need_root(args)
+    ours = {_norm(whoami(root)["company"]), "company"}
+    if args.company and _ref_key(args.company) not in ours:
+        res = add_contact(root, args.name, args.company, role=args.role, owner=args.owner, email=args.email,
+                          aliases=args.alias, handles=args.handle, kind=args.kind)
+        emit(args, res, ("created " if res["created"] else "exists ") + res["path"]
+             + (f"\ncreated the org page {res['company']} (kind {res['kind']})" if res["company_created"] else ""))
+        return
     values = {"role": args.role or "TBD", "team": f"[[{args.team}]]" if args.team else "TBD",
               "manager": f"[[{args.manager}]]" if args.manager else "TBD"}
     if args.email:
@@ -3951,6 +4183,18 @@ def refresh(root: Path, quiet=False) -> dict:
     report[hub.relative_to(root).as_posix()] = write_auto_block(
         hub, WORK_MAP_KEY, render_work_map(notes, model),
         generated_header("hub", "Organization", "company", "This is the organization hub: who works on what, from people profiles and project notes."))
+    report[PEOPLE_DIRECTORY] = write_auto_block(
+        root / PEOPLE_DIRECTORY, "people-directory", render_people_directory(notes, who["company"]),
+        generated_header("people-directory", "People Directory", "company",
+                         "This note is the generated directory of everyone the company works with, grouped by "
+                         "organisation: our people from Company/Org/People, then each customer, partner and vendor "
+                         "from Company/Org/Companies with its contacts from Company/Org/Contacts. Business facts only."))
+    cards, orgs = contacts(notes), companies(notes)
+    for o in orgs:
+        status = write_auto_block(o.path, "org-people", render_org_people(o, cards, orgs), "")
+        if status != "unchanged":
+            report[o.rel] = status
+    report[PEOPLE_BASE] = write_people_base(root, who["company"])
     (root / "index.md").write_text(render_index(root, scan(root)), encoding="utf-8")
     report["index.md"] = "rebuilt"
     return report
@@ -4300,6 +4544,10 @@ def main(argv=None):
     p.add_argument("--email", help="work email; used to match the person in connected systems")
     p.add_argument("--alias", action="append", help="another name the person goes by (repeatable)")
     p.add_argument("--handle", action="append", help="system:id in a connected system, e.g. github:jdoe (repeatable)")
+    p.add_argument("--company", help="their organisation when it is not ours: creates a contact card in "
+                                     "Company/Org/Contacts (and a stub org page if there is none)")
+    p.add_argument("--owner", help="with --company: who on our side owns the relationship")
+    p.add_argument("--kind", choices=ORG_KINDS, help="with --company: the kind of a new org page")
     p.set_defaults(fn=cmd_person_add)
     p = person.add_parser("works-on", help="record that a person works on a project (from a connected system "
                                            "or the user); refused below the brain's confidence threshold")

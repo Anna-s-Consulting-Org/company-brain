@@ -1,7 +1,7 @@
 ---
 name: org
-description: Manage people and the organization in the brain - shared profiles (role, team, manager, contact, with bi-temporal history), who works on which project (detected in connected systems such as Linear, Jira, GitHub, Asana, Notion and recorded when the match is confident), my personal stakeholder notes (what they care about, how we can help each other, how to work with them, relationship, influence, interest, open asks, follow-ups), team spaces, and the generated org chart. Use for "add a person", "X moved to team Y", "who works on X", "what is Jane working on", "track Jane as a stakeholder", "prep me for working with Jane", "stakeholder map", "who reports to", "org chart", "who is on the platform team".
-argument-hint: "[add person | new team | X moved to Y | who works on X | track <person> as a stakeholder]"
+description: Manage people and the organization in the brain - shared profiles (role, team, manager, contact, with bi-temporal history), org pages of customers, partners and vendors with their contacts, the People Directory of everyone by organisation, who works on which project (detected in connected systems such as Linear, Jira, GitHub, Asana, Notion and recorded when the match is confident), my personal stakeholder notes (what they care about, how we can help each other, how to work with them, relationship, influence, interest, open asks, follow-ups), team spaces, and the generated org chart. Use for "add a person", "X moved to team Y", "who works on X", "what is Jane working on", "track Jane as a stakeholder", "prep me for working with Jane", "stakeholder map", "who reports to", "org chart", "who is on the platform team", "add Globex as a customer", "who do we know at Globex", "people directory".
+argument-hint: "[add person | new team | X moved to Y | who works on X | track <person> as a stakeholder | add <org> as a customer]"
 ---
 
 # Organization
@@ -11,8 +11,10 @@ argument-hint: "[add person | new team | X moved to Y | who works on X | track <
 | Shared profile (`type: person`) | `Company/Org/People/<Full Name>.md` | company |
 | My view of a person (`type: stakeholder`) | `Personal/Stakeholders/Stakeholder - <Full Name>.md`, map in `My Stakeholders.md` | personal |
 | 1:1 log (`type: one-on-one`, the `meeting` skill) | `Personal/1-1s/1-1 - <Person>.md` | personal |
+| Org page of a customer, partner, vendor (`type: company`) | `Company/Org/Companies/<Organisation>.md` | company |
+| Contact card of a person there (`type: person`) | `Company/Org/Contacts/<Full Name>.md` | company |
 | Team charter (`type: team`) | `Teams/<Team>/<Team>.md` | team |
-| Org chart, who works on what (generated) | `Company/Org/Org Chart.md`, `Company/Org/Organization.md` | company |
+| Org chart, who works on what, People Directory, People.base (generated) | `Company/Org/Org Chart.md`, `Company/Org/Organization.md`, `Company/Org/People Directory.md`, `Company/Org/People.base` | company |
 
 ## Before you start
 1. **Find the brain.** The session context has a **Company Brain** line with the brain path and the engine path. If it is missing, run `python3 "${CLAUDE_SKILL_DIR}/../../scripts/brain.py" root`. No brain found: stop and tell the user to open Claude in the brain folder or set the plugin's vault path.
@@ -29,6 +31,10 @@ argument-hint: "[add person | new team | X moved to Y | who works on X | track <
 - **prep for working with someone**: their shared profile (role, team, Works on), my stakeholder note (What they care about, How we can help each other, How to work with them, Open asks), and the last meeting or 1:1. Propose what to bring and what to ask; write nothing unless the user wants it.
 - **who works on what**: detect and record (next section); show with `brain refresh`, then the profile's `## Works on` or the map on `Organization.md`.
 - **upgrade profiles** after the profile template changed: `brain person upgrade` is a dry run that lists the fields and sections each profile lacks; `brain person upgrade --yes` once the user approves, then `brain refresh`. It adds; it never rewrites what a profile already says.
+- **add an organisation we work with**: `brain new company --title "<Organisation>" --set kind=<customer|partner|vendor|prospect|investor|other> --set 'owner=[[<Full Name>]]'`. Fill What they are to us with business facts, each with a source and date; `domains:` (its email domains) and `refs:` (CRM ids) help match it in connected systems. Our own company never gets one: it is the `Company/` layer.
+- **add a contact**: `brain person add "<Full Name>" --company "<Organisation>" --role "<Role>" [--owner "<who on our side>"] [--email ...] [--kind customer]`. It writes a contact card in `Company/Org/Contacts/` and a stub org page when the organisation has none. Business-card facts only; how anyone relates to them goes in a stakeholder note (`brain new stakeholder --title "<Full Name>"`, which links the contact card). Someone at another organisation never gets a profile in `Company/Org/People/` (`brain check` warns): profiles feed the org chart and teams.
+- **contact moved organisation**: append to `timeline:` (close the old fact, add the new) and change `company:`; create the new org page if needed.
+- **directory**: `brain refresh`, then present `People Directory.md` (everyone by organisation) or one org page's People block. In Obsidian, `People.base` is the same list as a live table.
 - **add team**: `brain team add "<Team>" --lead "<Lead>"`, then fill the charter mission (ask), `parent:` (department), rituals, and Slack channel.
 - **show**: `brain refresh`, then present `Org Chart.md`, or a team's members (Dataview in the charter) and objectives.
 
@@ -72,6 +78,7 @@ If the user asks to fill profiles from a directory and a connector is available 
 ## Rules
 - A profile is shared. Impressions, feedback, relationship judgments, and 1:1 content go to `Personal/Stakeholders/` (this skill) or `Personal/1-1s/` (the `meeting` skill).
 - Stakeholder notes stay personal: `brain promote` refuses them, and nothing from them is copied to a profile. Only role, team, manager, contact, and work facts belong on a profile.
+- Org pages describe organisations: mutual value with a partner (How we can help each other) is a business fact there. Contact cards follow the profile rule: no stakeholder content.
 - Leavers: set `status: left`, close the timeline fact, end their open `works_on:` entries (`--ended`), keep the note (history stays traversable).
 - `brain refresh` after every change (org chart, profile Works on blocks, the Organization map).
 

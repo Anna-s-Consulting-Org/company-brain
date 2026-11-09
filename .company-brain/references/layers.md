@@ -6,7 +6,7 @@ The canonical spec for how Company Brain separates personal, team, and company k
 
 | Layer | Folder | Shared with | Travels through | Typical content |
 |---|---|---|---|---|
-| company | `Company/` | everyone in the company | the shared folder, never git | mission, vision, values, strategy, company OKRs, plans, discovery, roadmap, org chart, people profiles, company projects, all-hands and leadership meetings, company decisions |
+| company | `Company/` | everyone in the company | the shared folder, never git | mission, vision, values, strategy, company OKRs, plans, discovery, roadmap, org chart, people profiles, org pages of customers, partners and vendors and their contact cards, company projects, all-hands and leadership meetings, company decisions |
 | team | `Teams/<Team>/` | everyone (owned and edited by the team) | the shared folder, never git | team charter, team OKRs, team projects, team meetings, team weekly updates and roll-ups, team discovery, team board and roadmap |
 | personal | `Personal/` | nobody (local only) | nothing, this machine only | identity (`Me.md`), daily notes, personal weekly notes, 1:1s, stakeholder notes, private goals, personal board, inbox, drafts |
 
@@ -119,6 +119,7 @@ Older brains used a `git` model that committed `Company/` and `Teams/`. It is re
 |---|---|---|
 | Daily note, personal weekly, 1:1, private goal, inbox capture | personal | never shared directly; promote instead |
 | Stakeholder note (my view of a person: relationship, influence, interest, open asks) | personal | never shared, never promoted |
+| Org page of a customer, partner or vendor; contact card of a person there (business-card facts) | company | none |
 | Who works on which project, from a company-visible record in a connected system | company (the person's profile, `works_on:`) | below the confidence threshold: nothing is written; the user confirms first |
 | Weekly team update | team (own file) | none |
 | Team roll-up, team OKRs, team meeting, team project, team board | team | company when the user says it is company-wide |

@@ -30,9 +30,10 @@ Schemas: `type: meeting` and `type: one-on-one` in `references/schemas.md`.
 4. **Fill**: agenda, notes (concise, attributed), `## Decisions`, `## Action items` as `- [ ] [[Owner]] action @{YYYY-MM-DD}`.
 5. **Route** (ask before writing to someone else's or a shared board): my actions to `Personal/My Board.md`; team commitments to the team board; others' actions stay in the note with their owner linked.
 6. **Decisions** that change direction, scope, or ownership: offer the `decide` skill. KR-relevant facts: offer an `okr` check-in.
-7. **Stakeholders**: for each attendee with a stakeholder note, set `last_interaction:` to the meeting date (only if newer), add new asks in either direction to `## Open asks`, and set `follow_up:` when a next step was agreed. Offer a stakeholder note for someone new whose support matters to my work (the `org` skill).
-8. **Who works on what**: when a shared meeting shows who owns or works on a project (the person, their manager, or the project owner says so), record it with the `org` skill's works-on rules (`brain person works-on`, source: the shared meeting note). Never from a 1:1 or a private meeting without the user's yes.
-9. Link the meeting from the project and today's daily note.
+7. **External attendees** (customer, partner, vendor): link each to their contact card in `Company/Org/Contacts/`, and the meeting to their org page. Someone new: offer a contact card (`brain person add "<Full Name>" --company "<Organisation>" --role ...`, business-card facts only); never a profile.
+8. **Stakeholders**: for each attendee with a stakeholder note, set `last_interaction:` to the meeting date (only if newer), add new asks in either direction to `## Open asks`, and set `follow_up:` when a next step was agreed. Offer a stakeholder note for someone new whose support matters to my work (the `org` skill).
+9. **Who works on what**: when a shared meeting shows who owns or works on a project (the person, their manager, or the project owner says so), record it with the `org` skill's works-on rules (`brain person works-on`, source: the shared meeting note). Never from a 1:1 or a private meeting without the user's yes.
+10. Link the meeting from the project and today's daily note.
 
 ## 1:1 privacy
 Everything from a 1:1 stays in `Personal/1-1s/` (and the person's stakeholder note, which is personal too). Candid feedback goes under `## Private`. A shared action from a 1:1 is written on the board without the 1:1 context.

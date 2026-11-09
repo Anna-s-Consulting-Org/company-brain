@@ -38,6 +38,14 @@
       "template": "Templates/Person Template.md"
     },
     {
+      "folder": "Company/Org/Companies",
+      "template": "Templates/Company Template.md"
+    },
+    {
+      "folder": "Company/Org/Contacts",
+      "template": "Templates/Contact Template.md"
+    },
+    {
       "folder": "Company/Projects",
       "template": "Templates/Project Template.md"
     },

@@ -21,7 +21,7 @@ SORT follow_up ASC
 
 ## Map
 ```dataview
-TABLE WITHOUT ID file.link AS "Stakeholder",
+TABLE WITHOUT ID file.link AS "Stakeholder", choice(person.company, person.company, person.team) AS "Org",
   choice(influence = "high", choice(interest = "high", "Manage closely", "Keep satisfied"), choice(interest = "high", "Keep informed", "Monitor")) AS "Approach",
   influence, interest, relationship, last_interaction AS "Last interaction", follow_up AS "Follow up"
 FROM "Personal/Stakeholders"

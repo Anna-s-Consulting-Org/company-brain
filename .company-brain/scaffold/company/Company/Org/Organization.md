@@ -13,6 +13,7 @@ This is the organization hub: the generated org chart, the list of teams, every 
 
 - [[Org Chart]] (generated from `manager:` and `team:` on profiles)
 - [[Teams]]
+- [[People Directory]] (generated: everyone we work with, by organisation; our people here, customers, partners and vendors from `Company/Org/Companies/` with their contacts from `Company/Org/Contacts/`). `People.base` in this folder is the same list as a live Obsidian table.
 
 ## People
 ```dataview

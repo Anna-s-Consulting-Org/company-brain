@@ -17,6 +17,7 @@ Adapted from the obsidian-second-brain write rules (MIT, (c) 2026 Eugeniu Ghelbu
 | Work seen in a connected system (a lead, owner, or contributor on a project) | `brain person works-on` on the person's profile at or above the confidence threshold (the rest listed for the user to confirm), the project note's `refs:` when the system id is new, `brain refresh` |
 | Project created or its People changed | `brain refresh` (each named person's Works on block); a project made from an Organization "no project note yet" entry gets the system id in `refs:` |
 | Stakeholder note created or changed | nothing shared; `My Stakeholders.md` picks it up (Dataview) |
+| Org page or contact card created or changed | `brain refresh` (People Directory, the org page's People block, People.base); a new contact at an organisation with no page gets a stub org page; an external meeting links the contacts it involved |
 | Personal weekly written | `Personal/My Board.md` (action items), KR check-ins on the objectives the user owns, a drafted team update (proposed, not written, until the user approves) |
 | Team update written | the team roll-up for that week, if one already exists (`## Updates` list) |
 | Any write | `brain index` at the end of the skill run (rebuilds `index.md`); append one line to `log.md` |

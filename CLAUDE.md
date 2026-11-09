@@ -41,6 +41,7 @@ Fast-changing facts (counts, open items, balances, statuses) are timeless, dated
 - **Default layer when unclear**: ask once; if no answer, personal. A private note in the wrong place can be promoted; a shared note in the wrong place has already leaked.
 - **Data from connectors** (calendar, Slack, email, Jira, Drive, meeting notes) lands in personal notes. It reaches a shared note only as content the user approved (a published team update, a promoted note). One exception: who works on which project, seen in a company-visible record (a project tracker, a code host, a shared doc, channel, or meeting), goes on the person's shared profile through `brain person works-on`, which requires a source and refuses anything below the brain's confidence threshold (`people.works_on_min_confidence`, default high). The `org` skill has the rules.
 - **People**: a shared profile (`Company/Org/People/`) holds intranet-level facts only: role, team, manager, contact, the work they do. Stakeholder management (what they care about, how we help each other, how to work with them, open asks, relationship, influence, interest, follow-ups) is a stakeholder note in `Personal/Stakeholders/`, never shared and never promoted; `brain check` errors if it appears on a profile.
+- **Organisations we work with**: customers, partners, vendors have an org page in `Company/Org/Companies/`, and their people a contact card in `Company/Org/Contacts/` (business-card facts: role, organisation, work email, owner on our side). Contacts never go in `Company/Org/People/`, so they stay out of the org chart and teams; the same stakeholder rule applies to them.
 - **Two channels, never mixed.** Content is every note in `Company/`, `Teams/` and `Personal/` (people, teams, meetings, goals, decisions) plus `Company/company.yaml` with the company's settings: `Company/` and `Teams/` reach teammates through the shared folder, `Personal/` stays on this machine. The system (`.company-brain/`, `System/`, `Templates/`, `CLAUDE.md`, `Home.md`, `brain.yaml`, `.claude/`, `.github/`, `.obsidian/` settings) travels through git. Git never carries content: `.gitignore` leaves it out, the pre-commit guard (`brain git hook`) refuses it, CI runs `brain git check --tracked`.
 - **Sharing model** is `sharing.model` in `brain.local.yaml` (this machine): `drive` (Google Shared Drive), `folder` (any other shared folder), or `local`. `brain share --to <folder>` links `Company/` and `Teams/` into it. After a shared-layer write, say whether it syncs now (drive, folder) or stays on this machine (local); never suggest a commit for a note. There is no pull request for content, so show the diff and get a yes before changing a company note.
 - **System changes** go through the `contribute` skill: `brain git status`, `brain git stage` (system files only), a commit on the user's yes. Never push, never open a pull request, never send a message on your own.
@@ -64,6 +65,8 @@ Fast-changing facts (counts, open items, balances, statuses) are timeless, dated
 | knowledge, source | `<L>/Knowledge/` (personal: `Personal/Notes/`) | `<Title>` (`source` is a captured file from folder ingestion) |
 | crew-log, crew-lessons | `Personal/Crew/` | `<YYYY-MM-DD>` (written by `crew.py`) |
 | person | `Company/Org/People/` | `<Full Name>` |
+| company (an organisation we work with) | `Company/Org/Companies/` | `<Organisation name>` |
+| contact (a person at one of them) | `Company/Org/Contacts/` | `<Full Name>` |
 | stakeholder | `Personal/Stakeholders/` | `Stakeholder - <Full Name>` |
 | team | `Teams/<Team>/` | `<Team>` |
 | daily, weekly | `Personal/Daily/`, `Personal/Weekly/` | `<YYYY-MM-DD>`, `<YYYY>-W<WW>` |
@@ -86,7 +89,7 @@ Filenames are globally unique on purpose (Obsidian resolves links by filename). 
 | `new <kind> --title T [--layer L] [--team T] [--set k=v ...]` | create a note from its template, in the right folder, with the right name. Refuses duplicates (exit 3, prints the existing path) |
 | `refresh` | rebuild generated views: OKR trees, discovery trees and canvases, prioritization matrices, org chart, `index.md` |
 | `check [--severity warn]` | leaks, layer mismatches, AI-first gaps, OKR hygiene, orphans, unresolved links |
-| `init`, `team add`, `person add` | scaffolding (setup and org skills). `init` also moves company settings out of `brain.yaml` and installs the git guard; `person add` takes `--email`, `--handle system:id`, `--alias` for matching people in connected systems |
+| `init`, `team add`, `person add` | scaffolding (setup and org skills). `init` also moves company settings out of `brain.yaml` and installs the git guard; `person add` takes `--email`, `--handle system:id`, `--alias` for matching people in connected systems; `--company <Org>` (with `--owner`, `--kind`) makes a contact card at another organisation and a stub org page if needed |
 | `person works-on <person> --project P --role R --source S --confidence C` | record who works on what from a connected system or the user: matched by name, alias, email, or handle; refused below the confidence threshold (exit 5); `--ended`, `--replace`, `--dry-run` |
 | `person upgrade [--yes]` | add the profile template's new fields and sections to existing profiles (dry run unless `--yes`) |
 | `share [--to F] [--yes]` | link `Company/` and `Teams/` into a Google Shared Drive or shared folder (dry run until `--yes`; no `--to` shows the state) |
@@ -99,9 +102,9 @@ Filenames are globally unique on purpose (Obsidian resolves links by filename). 
 | `commands [--check]` | regenerate the `/company-brain:<name>` project commands from the skills |
 | `context --level N` | company context as JSON |
 
-Kinds for `new`: objective, annual-plan, quarterly-plan, strategy, playing-to-win, vpc, bmc, outcome, opportunity, solution, experiment, project, meeting, decision, knowledge, person, stakeholder, one-on-one, daily, weekly, team-update, team-weekly.
+Kinds for `new`: objective, annual-plan, quarterly-plan, strategy, playing-to-win, vpc, bmc, outcome, opportunity, solution, experiment, project, meeting, decision, knowledge, person, company, contact, stakeholder, one-on-one, daily, weekly, team-update, team-weekly.
 
-**Generated views**: content between `<!-- brain:auto:start KEY -->` and `<!-- brain:auto:end KEY -->` is rewritten by `brain refresh`. Never edit inside the markers; edit the source notes and refresh. Everything outside the markers is preserved. A profile's `## Works on` is one of these blocks: it lists work from project and objective notes and from the profile's `works_on:` entries.
+**Generated views**: content between `<!-- brain:auto:start KEY -->` and `<!-- brain:auto:end KEY -->` is rewritten by `brain refresh`. Never edit inside the markers; edit the source notes and refresh. Everything outside the markers is preserved. A profile's `## Works on` is one of these blocks: it lists work from project and objective notes and from the profile's `works_on:` entries. So are `People Directory.md` and each org page's `## People`. `Company/Org/People.base` (a live Obsidian table) is built by `brain refresh` from upstream's vendored `people.base.template` plus our overlay; an edit made to it in Obsidian is kept.
 
 ---
 
@@ -125,6 +128,7 @@ Trace every write forward, up or sideways, never down (`.company-brain/reference
 - Meeting: actions to owners' boards (mine to `Personal/My Board.md`, team commitments to the team board after asking), significant decisions to decision records, `last_interaction:` and open asks on attendees' stakeholder notes, who-works-on-what seen in a shared meeting through `brain person works-on`.
 - Decision: the context note's `## Decisions`, affected project or OKR, `supersedes` chain.
 - Person changed: bi-temporal `timeline:` entry (never overwrite history), `brain refresh`.
+- Org page or contact created or changed: `brain refresh` (People Directory, the org page's People block, People.base); a contact who moves organisation gets a `timeline:` entry and a new `company:`.
 - Work seen in a connected system (who leads, owns, or contributes to a project): `brain person works-on` at or above the threshold, the rest listed for the user to confirm, then `brain refresh` (profile Works on blocks, the Organization map).
 - Any write: `brain index` at the end (or `brain refresh` when OKRs, discovery, scores, or people changed).
 

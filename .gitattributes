@@ -3,6 +3,7 @@
 # recorded there is of the exact bytes, so a CRLF checkout would look like an edit.
 .company-brain/references/ai-first-rules.md -text
 .company-brain/references/freshness-policy.md -text
+.company-brain/references/bases/people.base.template -text
 .company-brain/scripts/freshness_lint.py -text
 .company-brain/scripts/vault_scan.py -text
 .company-brain/tests/test_freshness_lint.py -text
