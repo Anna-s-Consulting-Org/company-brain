@@ -1,20 +1,19 @@
-# Company Brain configuration (shared, committed).
-# Personal identity lives in Personal/Me.md, which is never committed.
+# Company Brain system settings. Committed to git with the engine.
+#
+# Two channels (System/Sharing models.md):
+#   - git carries the system only: engine, skills, templates, System/ docs, settings like this file.
+#   - content (Company/, Teams/) reaches teammates through a Google Shared Drive or shared folder,
+#     never git. Personal/ never leaves this machine.
+# So nothing about the company lives here. Company settings are in Company/company.yaml (they travel
+# with the content); this machine's sharing setup is in brain.local.yaml (gitignored).
 # This file is also the marker hooks and the CLI use to find the brain root.
 
 brain:
   name: Company Brain
   version: 0.1.0
 
-company:
-  name: "Your Company"          # set by /company-brain:setup or: brain init --company "Name"
-  fiscal_year_start: 1          # month the fiscal year starts (1 = calendar quarters)
-  timezone: UTC
-
-sharing:
-  model: git                    # git | drive | local  (see System/Layers and privacy.md)
-  remote: ""                    # e.g. git@github.com:your-org/company-brain.git (private)
-
-# Shared source mounts (managed by: brain connect <path> --name <Name> --shared).
-# Each teammate recreates them on their machine with: brain connect --sync
-sources: []
+git:
+  # Paths git may carry besides the built-in system paths (.company-brain/, System/, Templates/,
+  # .claude/, .claude-plugin/, .github/, .obsidian/ and the root docs). Content paths can never be
+  # added. Example: allow: [docs, CONTRIBUTING.md]
+  allow: []

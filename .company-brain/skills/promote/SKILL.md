@@ -26,10 +26,10 @@ The only path from Personal/ to a shared layer. Spec: `references/layers.md` (Pr
 5. **Show the user the diff** and wait for an explicit yes.
 6. **Write**: re-run the same command with `--yes`. It writes the shared note, adds `promoted_to: "[[<shared note>]]"` to the source (an upward link, allowed), and runs the layer check on the result; fix anything it reports.
 7. **Preamble**: rewrite the shared note's `## For future agent` preamble for the shared audience (team updates already get one from their template). Do not record the personal note's path anywhere in the shared note.
-8. With `sharing: git`, suggest a commit (team layer) or a pull request (company layer).
+8. Say how the note reaches teammates: with `sharing: drive` or `folder` it syncs as soon as it is written; with `local` it stays on this machine until `brain share` links `Company/` and `Teams/` to a shared folder. Never commit it to git.
 
 ## Always
 - Layers: Company/ and Teams/ are shared; Personal/ is local only. Never link from a shared note to a Personal note, and never copy content under `## Private` out of Personal/ (`references/layers.md`).
 - AI-first notes: frontmatter with `date`, `type`, `tags`, `ai-first: true`, `layer`; a `## For future agent` preamble; `[[wikilinks]]` for every person, team, objective, and project (`references/ai-first-rules.md`, `references/schemas.md`).
 - Search before create (`brain new` refuses duplicates and prints the existing path). Never invent facts, numbers, dates, or people: write `TBD` and ask.
-- Finish with `brain refresh` when OKRs, discovery, scores, or people changed, otherwise `brain index`. With `sharing: git`, list the shared files changed and suggest a commit; never push or open a pull request yourself.
+- Finish with `brain refresh` when OKRs, discovery, scores, or people changed, otherwise `brain index`. Notes are content: they reach teammates through the shared folder (`sharing.model`), never through git, so never stage, commit or suggest committing them. Git is only for system changes (the `contribute` skill). Never push or open a pull request yourself.

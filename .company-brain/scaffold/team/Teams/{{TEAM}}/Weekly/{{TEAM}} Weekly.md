@@ -10,7 +10,7 @@ team: "[[{{TEAM}}]]"
 # {{TEAM}} Weekly
 
 ## For future agent
-This is the {{TEAM}} weekly hub: one update file per member per week and one team roll-up per week. Separate files per person keep git merges conflict-free.
+This is the {{TEAM}} weekly hub: one update file per member per week and one team roll-up per week. Separate files per person mean two people never edit the same file in the shared folder.
 
 ## Roll-ups
 ```dataview

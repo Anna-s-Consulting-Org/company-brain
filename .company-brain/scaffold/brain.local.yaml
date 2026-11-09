@@ -1,0 +1,6 @@
+# This machine's Company Brain settings. Local only: gitignored and never shared.
+# Set by: brain share --to <folder> (or brain init --sharing local).
+
+sharing:
+  model: local          # drive | folder | local: how Company/ and Teams/ reach teammates
+  location: ""          # the shared folder Company/ and Teams/ link into on this machine

@@ -158,7 +158,7 @@ def test_crew_writes_into_personal_and_never_into_the_shared_vault(brain):
                "--did", "Wrote 2 tests", "--where", "tests/x.py", env=env)
     assert r.returncode == 0, r.stderr
     assert list(folder.glob("*.md")) and not (brain / "wiki").exists()
-    assert "/Personal/" in gitignore_lines()  # the whole personal layer, Crew included, stays out of git
+    assert {"/Personal", "/Personal/"} & set(gitignore_lines())  # the whole personal layer, Crew included, stays out of git
 
 
 def test_crew_skill_always_passes_dir_and_asks_before_touching_outside_config():

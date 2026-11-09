@@ -275,7 +275,7 @@ class Note:
 
 
 def iter_md(root: Path):
-    """Notes in the brain. Follows symlinked folders: with sharing: drive, Company/ and Teams/<T>/ are links."""
+    """Notes in the brain. Follows symlinked folders: with sharing drive or folder, Company/ and Teams/ are links."""
     seen = set()
     for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         rel = Path(dirpath).relative_to(root)
@@ -347,12 +347,44 @@ def find_root(explicit: str | None = None) -> Path | None:
     return None
 
 
-def load_config(root: Path) -> dict:
+# Settings live in three files, one per channel (System/Sharing models.md):
+#   brain.yaml            system settings, committed to git with the engine
+#   Company/company.yaml  company settings (name, fiscal year, timezone, shared sources): content,
+#                         so it travels with Company/ through the shared folder, never through git
+#   brain.local.yaml      this machine's sharing setup (model, where Company/ and Teams/ link to):
+#                         gitignored, never shared
+# Older brains kept everything in brain.yaml; those keys are still read, below the new files,
+# until `brain init` moves them out (migrate_config).
+COMPANY_CONFIG = Path("Company") / "company.yaml"
+LOCAL_CONFIG = Path("brain.local.yaml")
+SHARING_MODELS = ("drive", "folder", "local")
+LEGACY_KEYS = ("company", "sharing", "sources")
+
+
+def _read_yaml(path: Path) -> dict:
     try:
-        cfg = parse_yaml((root / "brain.yaml").read_text(encoding="utf-8"))
-    except OSError:
-        cfg = {}
+        cfg = parse_yaml(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError):
+        return {}
     return cfg if isinstance(cfg, dict) else {}
+
+
+def load_config(root: Path) -> dict:
+    cfg = {}
+    for path in (root / "brain.yaml", root / COMPANY_CONFIG, root / LOCAL_CONFIG):
+        for k, v in _read_yaml(path).items():
+            if isinstance(v, dict) and isinstance(cfg.get(k), dict):
+                cfg[k] = dict(cfg[k], **v)
+            else:
+                cfg[k] = v
+    return cfg
+
+
+def sharing_model(cfg: dict) -> str:
+    """drive | folder | local. The retired `git` model (and anything unknown) reads as local:
+    git carries the system only, so content stays on this machine until `brain share` links it."""
+    model = str((cfg.get("sharing") or {}).get("model") or "local")
+    return model if model in SHARING_MODELS else "local"
 
 
 def period_info(day: dt.date, fy_start: int = 1) -> dict:
@@ -394,7 +426,8 @@ def whoami(root: Path) -> dict:
         "manager": link_target(me.get("manager")) if me.get("manager") else None,
         "timezone": me.get("timezone") or company.get("timezone"),
         "all_teams": teams,
-        "sharing": (cfg.get("sharing") or {}).get("model", "local"),
+        "sharing": sharing_model(cfg),
+        "sharing_location": (cfg.get("sharing") or {}).get("location") or None,
         "period": info,
         "me_file_exists": me_path.is_file(),
     }
@@ -516,16 +549,16 @@ def render_placeholders(s: str, ctx: dict) -> str:
 
 
 def stamp_placeholders(root: Path) -> list[str]:
-    """Fill unresolved {{TODAY}} / scaffold tokens in existing notes (template defaults).
+    """Fill unresolved {{TODAY}} / scaffold tokens in existing content notes (template defaults).
 
-    Only touches files that still contain {{PLACEHOLDER}} tokens. Once stamped,
-    dates stay put; run again after resetting tokens in a fresh template copy.
+    Only touches notes in Company/, Teams/ and Personal/ that still contain {{PLACEHOLDER}}
+    tokens. System files (System/, Home.md) keep their tokens: git carries them verbatim, so
+    stamping them would turn every brain's setup into a system change. Once stamped, dates stay put.
     """
     ctx = scaffold_ctx(root)
-    skip_parts = {".company-brain", ".git", ".obsidian", "Templates", "Exports", "Sources"}
     stamped = []
     for p in iter_md(root):
-        if any(part in skip_parts for part in p.relative_to(root).parts):
+        if p.relative_to(root).parts[0] not in ("Company", "Teams", "Personal"):
             continue
         text = p.read_text(encoding="utf-8")
         if "{{" not in text:
@@ -538,7 +571,8 @@ def stamp_placeholders(root: Path) -> list[str]:
 
 
 
-def render_scaffold(src: Path, dst_root: Path, ctx: dict) -> list:
+def render_scaffold(src: Path, dst_root: Path, ctx: dict, render: bool = True) -> list:
+    """Copy missing scaffold files into the brain, filling {{TOKENS}} unless render=False (system files)."""
     created = []
     if not src.is_dir():
         return created
@@ -552,6 +586,8 @@ def render_scaffold(src: Path, dst_root: Path, ctx: dict) -> list:
         target.parent.mkdir(parents=True, exist_ok=True)
         if p.name == ".keep":
             target.touch()
+        elif not render:
+            target.write_bytes(p.read_bytes())
         else:
             target.write_text(render_placeholders(p.read_text(encoding="utf-8"), ctx), encoding="utf-8")
         created.append(target.relative_to(dst_root).as_posix())
@@ -789,22 +825,119 @@ def upstream_check(root: Path, diff: bool = False, copy: bool = False, mark: boo
     return res
 
 
-def _set_brain_yaml(root: Path, section: str, key: str, value: str) -> None:
-    path = root / "brain.yaml"
-    lines = path.read_text(encoding="utf-8").split("\n")
-    in_section = False
-    for i, line in enumerate(lines):
-        if re.match(rf"^{section}:\s*$", line):
-            in_section = True
-            continue
-        if in_section and re.match(r"^\S", line):
-            break
-        if in_section and re.match(rf"^\s+{key}:", line):
-            indent = line[: len(line) - len(line.lstrip())]
-            comment = line[len(_strip_comment(line)):]
-            lines[i] = f"{indent}{key}: {yaml_value(_scalar(value) if value.isdigit() else value)}{comment}"
-            break
+def _set_yaml(path: Path, section: str, key: str, value: str) -> None:
+    """Set `section.key` in a settings file, keeping its comments; adds the key or section when missing."""
+    lines = path.read_text(encoding="utf-8").split("\n") if path.is_file() else []
+    rendered = yaml_value(_scalar(value) if value.isdigit() else value)
+    start = next((i for i, l in enumerate(lines) if re.match(rf"^{section}:\s*(#.*)?$", l)), None)
+    if start is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", f"{section}:", f"  {key}: {rendered}", ""]
+    else:
+        end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\S", lines[i])), len(lines))
+        for i in range(start + 1, end):
+            if re.match(rf"^\s+{re.escape(key)}:", lines[i]):
+                indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
+                comment = lines[i][len(_strip_comment(lines[i])):]
+                lines[i] = f"{indent}{key}: {rendered}{comment}"
+                break
+        else:
+            last = max([i for i in range(start + 1, end) if lines[i].strip()] or [start])
+            lines.insert(last + 1, f"  {key}: {rendered}")
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def ensure_company_config(root: Path) -> Path:
+    """Company/company.yaml, created from the scaffold when missing (it travels with Company/)."""
+    path = root / COMPANY_CONFIG
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(SCAFFOLD / "company" / COMPANY_CONFIG, path)
+    return path
+
+
+def ensure_local_config(root: Path) -> Path:
+    """brain.local.yaml, this machine's sharing setup (gitignored)."""
+    path = root / LOCAL_CONFIG
+    if not path.is_file():
+        shutil.copy(SCAFFOLD / LOCAL_CONFIG, path)
+    return path
+
+
+def set_company_setting(root: Path, key: str, value: str) -> None:
+    _set_yaml(ensure_company_config(root), "company", key, value)
+
+
+def set_sharing(root: Path, **values) -> None:
+    path = ensure_local_config(root)
+    for k, v in values.items():
+        _set_yaml(path, "sharing", k, str(v))
+
+
+def legacy_config(root: Path) -> dict:
+    """Company or machine settings still sitting in the committed brain.yaml (older brains)."""
+    cfg = _read_yaml(root / "brain.yaml")
+    out = {k: cfg[k] for k in LEGACY_KEYS if k in cfg}
+    if not as_list(out.get("sources")):
+        out.pop("sources", None)
+    return out
+
+
+def migrate_config(root: Path) -> list:
+    """Move company and sharing settings out of brain.yaml, which git carries, into
+    Company/company.yaml (content) and brain.local.yaml (this machine). Returns what moved."""
+    legacy = legacy_config(root)
+    if not legacy:
+        return []
+    done = []
+    company_new = not (root / COMPANY_CONFIG).is_file()
+    current = _read_yaml(root / COMPANY_CONFIG)
+    for key, value in (legacy.get("company") or {}).items():
+        have = (current.get("company") or {}).get(key)
+        if value not in (None, "") and (company_new or have in (None, "", PLACEHOLDER_COMPANY)) and have != value:
+            set_company_setting(root, key, str(value))
+            done.append(f"company.{key} -> {COMPANY_CONFIG.as_posix()}")
+    sources = [s for s in as_list(legacy.get("sources")) if isinstance(s, dict) and s.get("name")]
+    if sources and not as_list(current.get("sources")):
+        for s in sources:
+            add_shared_source(root, s["name"], {k: v for k, v in s.items() if k != "name"})
+        done.append(f"sources ({len(sources)}) -> {COMPANY_CONFIG.as_posix()}")
+    model = str((legacy.get("sharing") or {}).get("model") or "")
+    if model and not (root / LOCAL_CONFIG).is_file():
+        set_sharing(root, model=model if model in SHARING_MODELS else "local")
+        done.append(f"sharing.model {model} -> {LOCAL_CONFIG.as_posix()}"
+                    + (" as local: git now carries the system only, so share Company/ and Teams/ "
+                       "with `brain share --to <folder>`" if model == "git" else ""))
+    elif "sharing" in legacy:
+        done.append("sharing (dropped: brain.local.yaml already sets it)")
+    # brain.yaml keeps only its system sections: the scaffold's, plus any other section verbatim
+    old = _top_sections((root / "brain.yaml").read_text(encoding="utf-8"))
+    text = (SCAFFOLD / "brain.yaml").read_text(encoding="utf-8").rstrip("\n")
+    known = _top_sections(text)
+    for name, block in old.items():
+        if name and name not in LEGACY_KEYS and name not in known:
+            text += "\n\n" + "\n".join(block).strip("\n")
+    (root / "brain.yaml").write_text(text + "\n", encoding="utf-8")
+    brain_old = (parse_yaml("\n".join(old.get("brain", []))) or {}).get("brain") or {}
+    for k in ("name", "version"):
+        if brain_old.get(k) not in (None, ""):
+            _set_yaml(root / "brain.yaml", "brain", k, str(brain_old[k]))
+    done.append("brain.yaml now holds system settings only")
+    return done
+
+
+def _top_sections(text: str) -> dict:
+    """Top-level YAML sections -> their lines (key line to the next top-level key); None holds the header."""
+    out, name = {None: []}, None
+    for line in text.split("\n"):
+        m = re.match(r"^([A-Za-z_][\w-]*):", line)
+        if m:
+            name = m.group(1)
+            out[name] = []
+        out[name].append(line)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1665,6 +1798,7 @@ def check(root: Path, notes=None) -> list:
     for f in freshness_report(root)["findings"]:
         issues.append({"severity": "warn" if f["severity"] == "error" else "info", "path": f["file"],
                        "message": f"{f['rule']} line {f['line']}: {f['text']}"})
+    issues += channel_issues(root)
     return issues
 
 
@@ -1726,9 +1860,10 @@ def write_sources_registry(root: Path) -> None:
 
 
 def add_shared_source(root: Path, name: str, entry: dict) -> None:
-    cfg_path = root / "brain.yaml"
+    """Record a shared mount in Company/company.yaml: it names company folders, so it is content."""
+    cfg_path = ensure_company_config(root)
     text = cfg_path.read_text(encoding="utf-8")
-    cfg = load_config(root)
+    cfg = _read_yaml(cfg_path)
     sources = [s for s in as_list(cfg.get("sources")) if isinstance(s, dict) and s.get("name") != name]
     sources.append(dict({"name": name}, **entry))
     block = "sources:" + ("".join(
@@ -1738,6 +1873,479 @@ def add_shared_source(root: Path, name: str, entry: dict) -> None:
     else:
         text = text.rstrip() + "\n" + block + "\n"
     cfg_path.write_text(text, encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Two channels: content through a shared folder (brain share), the system through git (brain git)
+# ---------------------------------------------------------------------------
+# Content is what a company writes into the brain: notes about people, teams, meetings, goals,
+# decisions, and the settings that name the company. It reaches teammates only through a
+# Google Shared Drive or another shared folder that Company/ and Teams/ link into. Personal/
+# never leaves the machine. Git carries the system only: the engine, skills, templates, the
+# System/ docs and settings that make every brain work. Spec: references/layers.md.
+
+SHARED_FOLDERS = ("Company", "Teams")
+
+# What git may carry. brain.yaml `git.allow` adds paths; it can never add a content path.
+SYSTEM_DIRS = (".company-brain", "System", "Templates", ".claude", ".claude-plugin", ".github", ".obsidian")
+SYSTEM_FILES = ("CLAUDE.md", "Home.md", "README.md", "ROADMAP.md", "LICENSE", "THIRD_PARTY_NOTICES.md",
+                "brain", "brain.yaml", ".gitignore", ".gitattributes", ".freshness.json", ".vault-config.json")
+# What git never carries, whatever git.allow says.
+CONTENT_TOP = ("Company", "Teams", "Personal", "Sources", "Exports", ".share-backup")
+CONTENT_FILES = ("index.md", "log.md", ".checkin.json", "brain.local.yaml", ".env", ".claude/settings.local.json")
+CONTENT_PATTERNS = (".obsidian/workspace*",)  # per-device state that lists the notes you had open
+# Note types that are company content. Templates/ may hold them as templates, System/ never.
+CONTENT_TYPES = {"objective", "plan", "strategy", "playing-to-win", "vpc", "bmc", "outcome", "opportunity",
+                 "solution", "experiment", "project", "meeting", "one-on-one", "decision", "knowledge",
+                 "source", "person", "team", "daily", "weekly", "team-update", "team-weekly", "me",
+                 "mission", "vision", "values", "crew-log", "crew-lessons"}
+GIT_HOOK_MARK = "company-brain: git carries the system only"
+SYNC_ROOTS = ("Library/CloudStorage", "Library/Mobile Documents", "Dropbox", "Google Drive", "iCloudDrive")
+
+
+def git_toplevel(root: Path) -> Path | None:
+    try:
+        r = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    except OSError:
+        return None
+    return Path(r.stdout.strip()).resolve() if r.returncode == 0 and r.stdout.strip() else None
+
+
+def _git_z(top: Path, *args: str) -> list:
+    """NUL-separated git output, run from the repository top so every path is relative to it."""
+    r = subprocess.run(["git", "-C", str(top), "-c", "core.quotePath=false", *args], capture_output=True)
+    if r.returncode != 0:
+        raise SystemExit(f"error: git {' '.join(args)}: {r.stderr.decode('utf-8', 'replace').strip()}")
+    return [p for p in r.stdout.decode("utf-8", "replace").split("\0") if p]
+
+
+def _brain_rel(root: Path, top: Path, git_path: str) -> str | None:
+    """A path git reports (relative to the repository top) as a path in the brain, or None outside it."""
+    try:
+        return (top / git_path).relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return None
+
+
+def _top_rel(root: Path, top: Path, rel: str) -> str:
+    """A brain path as git sees it from the repository top (symlinks not followed)."""
+    return (root.resolve() / rel).relative_to(top).as_posix()
+
+
+def git_allow(root: Path) -> list:
+    return [str(p).strip("/") for p in as_list((_read_yaml(root / "brain.yaml").get("git") or {}).get("allow")) if p]
+
+
+def classify_path(rel: str, allow=()) -> tuple:
+    """(kind, reason) for a path in the brain: kind is system, content or other."""
+    import fnmatch
+    parts = rel.split("/")
+    if parts[0] in CONTENT_TOP or rel in CONTENT_FILES or any(fnmatch.fnmatch(rel, p) for p in CONTENT_PATTERNS):
+        layer = {"Company": "company layer", "Teams": "team layer", "Personal": "personal layer"}.get(parts[0], "local only")
+        return "content", f"content ({layer}): shared through the content folder, never git"
+    if parts[0] in SYSTEM_DIRS or rel in SYSTEM_FILES:
+        return "system", "system"
+    for pat in allow:
+        if fnmatch.fnmatch(rel, pat) or rel.startswith(pat + "/"):
+            return "system", f"system (git.allow: {pat})"
+    return "other", "not a system path: add it to `git.allow` in brain.yaml if it is part of the system"
+
+
+def _generic_names() -> set:
+    """Lowercase note names every brain has (scaffold hubs, generated views): not company content."""
+    names = {"org chart"}
+    for sub in ("company", "personal", "system"):
+        names |= {p.stem.lower() for p in (SCAFFOLD / sub).rglob("*.md")}
+    return names
+
+
+def content_markers(root: Path) -> dict:
+    """What would identify this company if it appeared in a system file: the company name,
+    people's full names, team names, and links or paths to its own notes."""
+    notes = scan(root)
+    generic = _generic_names()
+    company = str((load_config(root).get("company") or {}).get("name") or "").strip()
+    people, teams, note_names, note_paths = set(), set(), {}, set()
+    for n in notes:
+        if n.folder_layer not in ("company", "team", "personal"):
+            continue
+        low = n.name.lower()
+        if n.type == "person" and " " in n.name.strip():
+            people.add(n.name.strip())
+        # team hubs are skipped: their names are everyday words (Platform, Growth) that shipped docs use as
+        # examples; the team still shows through a path into Teams/<team>/ and its notes' specific names
+        if low in generic or re.match(r"(my )?okr tree - ", low) or n.type == "team":
+            continue
+        note_names.setdefault(low, n.rel)
+        note_paths.add(n.rel)
+    if (root / "Teams").is_dir():
+        teams = {p.name for p in (root / "Teams").iterdir() if p.is_dir() and not p.name.startswith((".", "{{"))}
+    return {"company": company if company and company not in (PLACEHOLDER_COMPANY, "TBD", "Your Company Name") else "",
+            "people": sorted(people), "teams": sorted(teams), "note_names": note_names, "note_paths": note_paths}
+
+
+def scan_added_line(line: str, markers: dict) -> list:
+    found = []
+    if markers["company"] and re.search(rf"(?<![\w]){re.escape(markers['company'])}(?![\w])", line):
+        found.append(f"the company name {markers['company']!r}")
+    for person in markers["people"]:
+        if re.search(rf"(?<![\w]){re.escape(person)}(?![\w])", line):
+            found.append(f"a person's name {person!r}")
+    for target in (m.group(2).strip() for m in LINK_RE.finditer(line)):
+        rel = markers["note_names"].get(target.split("/")[-1].lower())
+        if rel:
+            found.append(f"a link to company content [[{target}]] ({rel})")
+    for team in markers["teams"]:
+        if f"Teams/{team}" in line:
+            found.append(f"a path into team {team!r}")
+    for rel in markers["note_paths"]:
+        if rel in line or rel[:-3] in line:
+            found.append(f"a path to company content {rel!r}")
+    return found
+
+
+def _staged_frontmatter_type(root: Path, git_path: str) -> tuple:
+    r = subprocess.run(["git", "-C", str(root), "show", f":{git_path}"], capture_output=True)
+    text = r.stdout.decode("utf-8", "replace") if r.returncode == 0 else ""
+    fm, _ = split_frontmatter(text)
+    return str(fm.get("type") or ""), ("<%" in text or "{{" in text)
+
+
+def git_check_staged(root: Path) -> list:
+    """Violations in what is staged for the next commit: [{path, problem}]. Deletions always pass:
+    taking content out of git is how a brain moves to the new model."""
+    top = git_toplevel(root)
+    if not top:
+        raise SystemExit(f"error: {root} is not inside a git repository")
+    allow = git_allow(root)
+    problems, system_paths = [], []
+    for git_path in _git_z(top, "diff", "--cached", "--name-only", "--no-renames", "-z", "--diff-filter=ACMRTUXB"):
+        rel = _brain_rel(root, top, git_path)
+        if rel is None:
+            continue  # outside the brain folder: not the brain's business
+        kind, reason = classify_path(rel, allow)
+        if kind != "system":
+            problems.append({"path": rel, "problem": reason})
+            continue
+        system_paths.append(git_path)
+        if rel.endswith(".md") and (rel.startswith(("System/", "Templates/")) or "/" not in rel):
+            ntype, is_template = _staged_frontmatter_type(top, git_path)
+            if ntype in CONTENT_TYPES and not (rel.startswith("Templates/") and is_template):
+                problems.append({"path": rel, "problem": f"a `type: {ntype}` note is company content; it belongs in "
+                                                        "Company/, Teams/ or Personal/, not in a system folder"})
+    if system_paths:
+        markers = content_markers(root)
+        r = subprocess.run(["git", "-C", str(top), "-c", "core.quotePath=false", "diff", "--cached", "--no-renames",
+                            "-U0", "--no-color", "--no-ext-diff", "--", *system_paths], capture_output=True)
+        current, lineno = None, 0
+        for line in r.stdout.decode("utf-8", "replace").split("\n"):
+            if line.startswith("+++ "):
+                p = line[4:].strip().strip('"')
+                current = _brain_rel(root, top, p[2:]) if p.startswith("b/") else None
+            elif line.startswith("@@"):
+                m = re.search(r"\+(\d+)", line)
+                lineno = int(m.group(1)) if m else 0
+            elif line.startswith("+") and current:
+                for what in scan_added_line(line[1:], markers):
+                    problems.append({"path": f"{current}:{lineno}", "problem": f"adds {what}"})
+                lineno += 1
+    return problems
+
+
+def git_tracked_content(root: Path) -> list:
+    """Files git tracks that it must not: [{path, kind, problem}]."""
+    top = git_toplevel(root)
+    if not top:
+        return []
+    allow, out = git_allow(root), []
+    for git_path in _git_z(top, "ls-files", "-z"):
+        rel = _brain_rel(root, top, git_path)
+        if rel is None:
+            continue
+        kind, reason = classify_path(rel, allow)
+        if kind != "system":
+            out.append({"path": rel, "kind": kind, "problem": reason})
+    return out
+
+
+def git_status(root: Path) -> dict:
+    """Working-tree changes split by channel: what git may carry, and what must stay out of it."""
+    top = git_toplevel(root)
+    if not top:
+        raise SystemExit(f"error: {root} is not inside a git repository")
+    allow = git_allow(root)
+    out = {"system": [], "content": [], "other": [], "leaving_git": []}
+    entries = _git_z(top, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames")
+    for e in entries:
+        code, git_path = e[:2], e[3:]
+        rel = _brain_rel(root, top, git_path)
+        if rel is None:
+            continue
+        kind, reason = classify_path(rel, allow)
+        if kind != "system" and code[0] == "D":
+            kind = "leaving_git"  # a staged removal: taking content out of git, which a commit may do
+        out[kind].append({"path": rel, "status": code.strip() or "?", "reason": reason})
+    out["tracked_content"] = git_tracked_content(root)
+    return out
+
+
+def git_stage(root: Path) -> dict:
+    """Stage every changed system file (new, edited, deleted) and nothing else."""
+    st = git_status(root)
+    top = git_toplevel(root)
+    paths = [_top_rel(root, top, i["path"]) for i in st["system"]]
+    if paths:
+        r = subprocess.run(["git", "-C", str(top), "--literal-pathspecs", "add", "-A", "--", *paths],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise SystemExit(f"error: git add: {r.stderr.strip()}")
+    return {"staged": [i["path"] for i in st["system"]], "left_out": [i["path"] for i in st["content"] + st["other"]],
+            "problems": git_check_staged(root)}
+
+
+def _hooks_dir(root: Path) -> Path:
+    r = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-path", "hooks"], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit(f"error: {root} is not inside a git repository")
+    p = Path(r.stdout.strip())
+    return (p if p.is_absolute() else (Path(root) / p)).resolve()
+
+
+def git_hook_text(root: Path) -> str:
+    top = git_toplevel(root)
+    rel = root.resolve().relative_to(top).as_posix() if top else "."
+    base = "$top" if rel == "." else f"$top/{rel}"
+    return ("#!/bin/sh\n"
+            f"# {GIT_HOOK_MARK} (engine, skills, templates, docs), never content.\n"
+            "# Installed by `./brain git hook`; remove with `./brain git hook --remove`.\n"
+            'top="$(git rev-parse --show-toplevel)" || exit 1\n'
+            f'exec python3 "{base}/.company-brain/scripts/brain.py" --root "{base}" git check --staged\n')
+
+
+def git_hook_install(root: Path, only_if_free: bool = False) -> dict:
+    hook = _hooks_dir(root) / "pre-commit"
+    if hook.exists() and GIT_HOOK_MARK not in hook.read_text(encoding="utf-8", errors="replace"):
+        msg = (f"{hook} already exists and is not the Company Brain guard; add this line to it: "
+               f"./brain git check --staged || exit 1")
+        if only_if_free:
+            return {"installed": False, "path": str(hook), "message": "skipped: " + msg}
+        raise SystemExit("error: " + msg)
+    existed = hook.exists()
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    hook.write_text(git_hook_text(root), encoding="utf-8")
+    hook.chmod(0o755)
+    return {"installed": True, "path": str(hook),
+            "message": ("updated" if existed else "installed") + f" the pre-commit hook ({hook}): commits can carry "
+                       "system files only"}
+
+
+def git_hook_remove(root: Path) -> dict:
+    hook = _hooks_dir(root) / "pre-commit"
+    if hook.exists() and GIT_HOOK_MARK in hook.read_text(encoding="utf-8", errors="replace"):
+        hook.unlink()
+        return {"removed": True, "path": str(hook)}
+    return {"removed": False, "path": str(hook)}
+
+
+def git_hook_installed(root: Path) -> bool:
+    try:
+        hook = _hooks_dir(root) / "pre-commit"
+    except SystemExit:
+        return False
+    return hook.is_file() and GIT_HOOK_MARK in hook.read_text(encoding="utf-8", errors="replace")
+
+
+GITIGNORE_CONTENT = ["/Company", "/Teams", "/Personal", "/Sources", "/Exports", "/index.md", "/log.md",
+                     "/.checkin.json", "/brain.local.yaml", "/.share-backup"]
+
+
+def git_untrack(root: Path, yes: bool = False) -> dict:
+    """Stop git tracking content (files stay on disk) and make sure .gitignore keeps it out."""
+    tracked = [t for t in git_tracked_content(root) if t["kind"] == "content"]
+    ignore = root / ".gitignore"
+    have = set(ignore.read_text(encoding="utf-8").splitlines()) if ignore.is_file() else set()
+    missing = [l for l in GITIGNORE_CONTENT if l not in have and l + "/" not in have]
+    res = {"tracked": [t["path"] for t in tracked], "gitignore_missing": missing, "written": yes}
+    if yes:
+        top = git_toplevel(root)
+        paths = [_top_rel(root, top, t["path"]) for t in tracked]
+        for i in range(0, len(paths), 200):
+            r = subprocess.run(["git", "-C", str(top), "--literal-pathspecs", "rm", "-r", "--cached", "--quiet",
+                                "--", *paths[i:i + 200]], capture_output=True, text=True)
+            if r.returncode != 0:
+                raise SystemExit(f"error: git rm --cached: {r.stderr.strip()}")
+        if missing:
+            text = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
+            ignore.write_text(text.rstrip("\n") + "\n\n# Content never travels through git (brain git untrack)\n"
+                              + "\n".join(missing) + "\n", encoding="utf-8")
+    return res
+
+
+def _under(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def sync_root_of(path: Path):
+    """The cloud-sync folder (Google Drive, iCloud, Dropbox, OneDrive) a path sits in, or None."""
+    real = Path(os.path.realpath(path))
+    home = Path.home().resolve()
+    for name in SYNC_ROOTS:
+        base = home / name
+        if _under(real, base):
+            return base
+    for base in home.glob("OneDrive*"):
+        if _under(real, base.resolve()):
+            return base
+    return None
+
+
+def _files_under(folder: Path) -> dict:
+    out = {}
+    for dirpath, dirnames, filenames in os.walk(folder):
+        dirnames[:] = [d for d in dirnames if d != ".DS_Store"]
+        for f in filenames:
+            if f != ".DS_Store":
+                p = Path(dirpath) / f
+                out[p.relative_to(folder).as_posix()] = p
+    return out
+
+
+def share_plan(root: Path, to: str, model: str | None = None) -> dict:
+    """What `brain share --to <folder>` will do: link Company/ and Teams/ into a shared folder."""
+    target = Path(to).expanduser().resolve()
+    real_root = root.resolve()
+    if target == real_root or _under(target, real_root):
+        raise SystemExit("error: the shared folder cannot be inside the brain")
+    if _under(real_root, target):
+        raise SystemExit("error: the brain is inside that folder, so Personal/ would sync to everyone. "
+                         "Share a folder outside the brain; only Company/ and Teams/ go there")
+    if not target.exists() and not target.parent.exists():
+        raise SystemExit(f"error: neither {target} nor its parent folder exists")
+    in_drive = any(_under(target, g.resolve()) for g in gdrive_roots()) or "GoogleDrive" in str(target) \
+        or "Google Drive" in str(target)
+    model = model or ("drive" if in_drive else "folder")
+    steps = []
+    for name in SHARED_FOLDERS:
+        local, dest = root / name, target / name
+        step = {"folder": name, "local": str(local), "shared": str(dest)}
+        if local.is_symlink():
+            if os.path.realpath(local) == os.path.realpath(dest):
+                step.update(action="none", detail="already linked")
+            else:
+                raise SystemExit(f"error: {name}/ already links to {os.readlink(local)}; remove that link first")
+        elif not local.exists():
+            step.update(action="link", detail="link to the shared copy" if dest.exists() else "create and link")
+        elif not local.is_dir():
+            raise SystemExit(f"error: {local} is a file, not a folder")
+        elif not dest.exists() or (dest.is_dir() and not any(dest.iterdir())):
+            step.update(action="move", detail=f"move {len(_files_under(local))} files into the shared folder, then link")
+        else:
+            mine, theirs = _files_under(local), _files_under(dest)
+            only_here = sorted(r for r, p in mine.items() if r not in theirs or theirs[r].read_bytes() != p.read_bytes())
+            step.update(action="backup", only_here=only_here,
+                        detail=(f"the shared folder already has {name}/: keep it, move this copy to .share-backup/ "
+                                f"({len(only_here)} files differ or exist only here), then link"))
+        steps.append(step)
+    return {"to": str(target), "model": model, "steps": steps}
+
+
+def share_apply(root: Path, plan: dict) -> list:
+    done = []
+    target = Path(plan["to"])
+    target.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    for step in plan["steps"]:
+        local, dest = Path(step["local"]), Path(step["shared"])
+        if step["action"] == "none":
+            continue
+        if step["action"] == "move":
+            if dest.exists():
+                dest.rmdir()
+            shutil.move(str(local), str(dest))
+            done.append(f"moved {step['folder']}/ to {dest}")
+        elif step["action"] == "backup":
+            backup = root / ".share-backup" / f"{step['folder']}-{stamp}"
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(local), str(backup))
+            done.append(f"kept the shared {step['folder']}/; this machine's copy is in {backup.relative_to(root)}"
+                        + (f" ({len(step['only_here'])} files to review)" if step["only_here"] else ""))
+        else:
+            dest.mkdir(parents=True, exist_ok=True)
+        try:
+            local.symlink_to(dest, target_is_directory=True)
+        except OSError as exc:
+            raise SystemExit(f"error: cannot create the link {local} -> {dest}: {exc}. On Windows, turn on "
+                             "Developer Mode (or run as administrator) so links can be created")
+        done.append(f"linked {step['folder']}/ -> {dest}")
+    set_sharing(root, model=plan["model"], location=plan["to"])
+    done.append(f"sharing.model: {plan['model']}, location recorded in brain.local.yaml")
+    return done
+
+
+def share_status(root: Path) -> dict:
+    cfg = load_config(root)
+    links = []
+    for name in SHARED_FOLDERS:
+        p = root / name
+        links.append({"folder": name, "linked": p.is_symlink(), "target": os.readlink(p) if p.is_symlink() else None,
+                      "reachable": p.exists()})
+    return {"model": sharing_model(cfg), "location": (cfg.get("sharing") or {}).get("location") or None,
+            "links": links, "personal_sync_root": str(sync_root_of(root / "Personal") or "") or None}
+
+
+def channel_issues(root: Path) -> list:
+    """brain check findings about the two channels: content in git, Personal/ in a synced folder,
+    shared folders not linked, settings still in brain.yaml."""
+    issues = []
+    cfg = load_config(root)
+    model = sharing_model(cfg)
+    legacy = legacy_config(root)
+    if legacy:
+        issues.append({"severity": "warn", "path": "brain.yaml",
+                       "message": "holds company or sharing settings (" + ", ".join(sorted(legacy)) + "), and git "
+                                  "carries brain.yaml; run `brain init` to move them to Company/company.yaml and "
+                                  "brain.local.yaml"})
+    if str((legacy.get("sharing") or {}).get("model") or "") == "git":
+        issues.append({"severity": "warn", "path": "brain.yaml",
+                       "message": "sharing.model: git is retired: git carries the system only. Share Company/ and "
+                                  "Teams/ with `brain share --to <Drive or shared folder>`, or set local"})
+    tracked = git_tracked_content(root) if git_toplevel(root) else []
+    by_top = {}
+    for t in tracked:
+        by_top.setdefault((t["kind"], t["path"].split("/")[0]), []).append(t["path"])
+    for (kind, top), paths in sorted(by_top.items()):
+        issues.append({"severity": "error" if kind == "content" else "warn", "path": top,
+                       "message": (f"git tracks {len(paths)} content file(s) here; git carries the system only. "
+                                   "Run `brain git untrack` (files stay on disk)") if kind == "content" else
+                                  f"git tracks {len(paths)} file(s) that are not system paths; add them to "
+                                  "`git.allow` in brain.yaml or untrack them"})
+    if git_toplevel(root) and not git_hook_installed(root):
+        issues.append({"severity": "info", "path": ".git/hooks/pre-commit",
+                       "message": "the git guard is not installed: run `brain git hook` so commits carry system files only"})
+    location = (cfg.get("sharing") or {}).get("location")
+    personal = root / "Personal"
+    if location and _under(Path(os.path.realpath(personal)), Path(location).expanduser().resolve()):
+        issues.append({"severity": "error", "path": "Personal",
+                       "message": f"Personal/ is inside the shared folder {location}: it syncs to everyone"})
+    elif personal.exists() and sync_root_of(personal):
+        issues.append({"severity": "warn", "path": "Personal",
+                       "message": f"Personal/ sits in a cloud-synced folder ({sync_root_of(personal)}); keep the brain "
+                                  "folder on local disk and share only Company/ and Teams/"})
+    if model in ("drive", "folder"):
+        for name in SHARED_FOLDERS:
+            p = root / name
+            if p.is_symlink() and not p.exists():
+                issues.append({"severity": "error", "path": name,
+                               "message": f"links to {os.readlink(p)}, which is not reachable on this machine"})
+            elif not p.is_symlink():
+                issues.append({"severity": "warn", "path": name,
+                               "message": f"sharing.model is {model} but {name}/ is a local folder; "
+                                          "run `brain share --to <folder>` to link it"})
+    return issues
 
 
 # ---------------------------------------------------------------------------
@@ -1840,7 +2448,8 @@ def session_summary(root: Path) -> str:
         f"**Company Brain** for {who['company']} at `{root}` (engine `{ENGINE}`).",
         f"Run the CLI as: `python3 \"{ENGINE}/scripts/brain.py\" --root \"{root}\" <command>` "
         "(period, new, promote, refresh, index, check, connect, export-pack; see --help).",
-        f"Today {p['date']}, {p['quarter']}, week {p['week']}. Sharing model: {who['sharing']}.",
+        f"Today {p['date']}, {p['quarter']}, week {p['week']}. Content sharing: {who['sharing']}"
+        + (f" (Company/ and Teams/ link to {who['sharing_location']})" if who.get("sharing_location") else "") + ".",
     ]
     if me:
         lines.append(f"Me: [[{me}]] ({who.get('role') or 'role TBD'}), teams: "
@@ -1851,6 +2460,9 @@ def session_summary(root: Path) -> str:
         "Before writing to the brain, follow the brain's CLAUDE.md (layers, routing, AI-first rules). "
         "Layers: Company/ and Teams/ are shared; Personal/ is local-only. Never link from a shared note to a "
         "Personal note, and never copy `## Private` content out of Personal/.",
+        "Git carries the system only (engine, skills, templates, System/ docs). Never stage, commit or suggest "
+        "committing notes: content travels through the shared folder. For system changes use `brain git status` "
+        "and `brain git stage`; the pre-commit guard blocks content.",
         "Do not use the obsidian-second-brain MCP tools for this brain: they point at a different vault.",
     ]
     return "\n".join(lines)
@@ -1906,17 +2518,20 @@ def cmd_init(args):
     root = Path(args.root).expanduser().resolve() if args.root else (find_root() or Path.cwd())
     if not (root / "brain.yaml").is_file():
         shutil.copy(SCAFFOLD / "brain.yaml", root / "brain.yaml")
+    migrated = migrate_config(root)
+    ensure_local_config(root)
+    ensure_company_config(root)
     if args.company:
         old = (load_config(root).get("company") or {}).get("name") or ""
-        _set_brain_yaml(root, "company", "name", args.company)
+        set_company_setting(root, "name", args.company)
         if old == PLACEHOLDER_COMPANY and args.company != old:
             _rename_placeholder(root, old, args.company)
     if args.timezone:
-        _set_brain_yaml(root, "company", "timezone", args.timezone)
+        set_company_setting(root, "timezone", args.timezone)
     if args.fiscal_year_start:
-        _set_brain_yaml(root, "company", "fiscal_year_start", str(args.fiscal_year_start))
+        set_company_setting(root, "fiscal_year_start", str(args.fiscal_year_start))
     if args.sharing:
-        _set_brain_yaml(root, "sharing", "model", args.sharing)
+        set_sharing(root, model=args.sharing)
     me_ctx = {}
     if args.me:
         me_ctx = {"ME": args.me, "ME_FIRST": args.me.split(" ")[0], "ROLE": args.role or "TBD",
@@ -1924,7 +2539,7 @@ def cmd_init(args):
                   "MANAGER": args.manager or "TBD",
                   "TEAMS_YAML": "[" + ", ".join(f'"[[{t}]]"' for t in (args.team or [])) + "]",
                   "FIRST_TEAM": (args.team or ["TBD"])[0]}
-    created = render_scaffold(SCAFFOLD / "system", root, scaffold_ctx(root, me_ctx))
+    created = render_scaffold(SCAFFOLD / "system", root, scaffold_ctx(root, me_ctx), render=False)
     created += render_scaffold(SCAFFOLD / "company", root, scaffold_ctx(root, me_ctx))
     for t in args.team or []:
         created += render_scaffold(SCAFFOLD / "team", root, scaffold_ctx(root, dict(me_ctx, TEAM=t, TEAM_LEAD=args.lead or "TBD")))
@@ -1939,9 +2554,12 @@ def cmd_init(args):
         (root / gitkeep).mkdir(exist_ok=True)
     write_sources_registry(root)
     stamped = stamp_placeholders(root)
-    emit(args, {"root": str(root), "created": created, "stamped": stamped},
+    hook = git_hook_install(root, only_if_free=True) if git_toplevel(root) else None
+    emit(args, {"root": str(root), "created": created, "stamped": stamped, "migrated": migrated, "git_hook": hook},
          f"Brain at {root}\nCreated {len(created)} files" + "".join(f"\n  + {c}" for c in created)
-         + (f"\nStamped {len(stamped)} placeholder dates" + "".join(f"\n  ~ {s}" for s in stamped) if stamped else ""))
+         + (f"\nStamped {len(stamped)} placeholder dates" + "".join(f"\n  ~ {s}" for s in stamped) if stamped else "")
+         + (f"\nMoved settings out of git:" + "".join(f"\n  > {m}" for m in migrated) if migrated else "")
+         + (f"\nGit guard: {hook['message']}" if hook else ""))
 
 
 def cmd_scaffold_sync(args):
@@ -2237,9 +2855,117 @@ def cmd_connect(args):
         done.append(f"linked {name} -> {target}")
         if args.shared:
             add_shared_source(root, name, portable_source(target))
-            done.append(f"recorded {name} in brain.yaml sources (teammates run: brain connect --sync)")
+            done.append(f"recorded {name} in Company/company.yaml sources (teammates run: brain connect --sync)")
     write_sources_registry(root)
     print("\n".join(done) or "nothing to do")
+
+
+def cmd_share(args):
+    root = need_root(args)
+    if not args.to:
+        st = share_status(root)
+        text = [f"Content sharing: {st['model']}" + (f" at {st['location']}" if st["location"] else "")]
+        for l in st["links"]:
+            text.append(f"  {l['folder']}/: " + (f"linked to {l['target']}" + ("" if l["reachable"] else " (NOT REACHABLE)")
+                                                if l["linked"] else "local folder, not shared"))
+        if st["personal_sync_root"]:
+            text.append(f"  warning: Personal/ sits in a cloud-synced folder ({st['personal_sync_root']})")
+        text.append("Share with: brain share --to <Google Shared Drive or shared folder> (dry run, then --yes)")
+        emit(args, st, "\n".join(text))
+        return
+    if args.model == "local":
+        raise SystemExit("error: --model is drive or folder; to stop sharing, remove the links by hand")
+    plan = share_plan(root, args.to, args.model)
+    if not args.yes:
+        text = [f"Dry run: share Company/ and Teams/ through {plan['to']} (sharing.model: {plan['model']})"]
+        for s in plan["steps"]:
+            text.append(f"  {s['folder']}/: {s['detail']}")
+            for r in (s.get("only_here") or [])[:10]:
+                text.append(f"      only here or different: {r}")
+        text += ["Personal/ stays on this machine. Nothing changed yet: run again with --yes."]
+        emit(args, plan, "\n".join(text))
+        return
+    done = share_apply(root, plan)
+    if git_toplevel(root) and [t for t in git_tracked_content(root) if t["kind"] == "content"]:
+        done.append("git still tracks content: run `brain git untrack --yes` (files stay on disk)")
+    emit(args, {"plan": plan, "done": done}, "\n".join(done))
+
+
+def cmd_git(args):
+    root = need_root(args)
+    if args.sub == "status":
+        st = git_status(root)
+        text = []
+        for title, key in (("System changes (git may carry these; stage with: brain git stage)", "system"),
+                           ("Not system paths (git will refuse them)", "other"),
+                           ("Content (never goes to git)", "content"),
+                           ("Content leaving git (staged removals; the files stay on disk)", "leaving_git")):
+            if st[key]:
+                text.append(title)
+                text += [f"  {i['status']:2} {i['path']}" for i in st[key]]
+        if st["tracked_content"]:
+            text.append(f"Tracked by git but must not be ({len(st['tracked_content'])}): run brain git untrack")
+            text += [f"  {t['path']}" for t in st["tracked_content"][:20]]
+        emit(args, st, "\n".join(text) or "Nothing to commit: no system changes.")
+    elif args.sub == "stage":
+        res = git_stage(root)
+        text = [f"Staged {len(res['staged'])} system file(s)"] + [f"  + {p}" for p in res["staged"]]
+        if res["left_out"]:
+            text.append(f"Left out {len(res['left_out'])} file(s) that are not system files")
+        if res["problems"]:
+            text.append("The commit will be refused until these are fixed:")
+            text += [f"  {p['path']}: {p['problem']}" for p in res["problems"]]
+        emit(args, res, "\n".join(text))
+        if res["problems"]:
+            sys.exit(1)
+    elif args.sub == "check":
+        if args.tracked:
+            problems = [{"path": t["path"], "problem": t["problem"]} for t in git_tracked_content(root)]
+            ok = "Git tracks system files only."
+        else:
+            problems = git_check_staged(root)
+            ok = "Staged changes are system files only."
+        if args.json:
+            print(json.dumps(problems, indent=2))
+        elif problems:
+            print("Company Brain: git carries the system only (engine, skills, templates, docs), never content.",
+                  file=sys.stderr)
+            for p in problems:
+                print(f"  {p['path']}: {p['problem']}", file=sys.stderr)
+            print("Unstage content with `git restore --staged <path>`, or stage system files only with "
+                  "`./brain git stage`. Content reaches teammates through the shared folder (`./brain share`).",
+                  file=sys.stderr)
+        else:
+            print(ok)
+        sys.exit(1 if problems else 0)
+    elif args.sub == "hook":
+        res = git_hook_remove(root) if args.remove else git_hook_install(root)
+        text = res.get("message") or (f"removed {res['path']}" if res.get("removed") else
+                                      f"no Company Brain hook at {res['path']}")
+        emit(args, res, text)
+    elif args.sub == "untrack":
+        res = git_untrack(root, yes=args.yes)
+        if not res["tracked"] and not res["gitignore_missing"]:
+            emit(args, res, "Git tracks no content.")
+            return
+        verb = "Stopped tracking" if args.yes else "Dry run: would stop tracking"
+        text = [f"{verb} {len(res['tracked'])} content file(s); they stay on disk"]
+        text += [f"  - {p}" for p in res["tracked"][:30]] + (["  ..."] if len(res["tracked"]) > 30 else [])
+        if res["gitignore_missing"]:
+            text.append(("Added" if args.yes else "Would add") + " to .gitignore: " + ", ".join(res["gitignore_missing"]))
+        text.append("Then commit the result (a commit that only removes content from git passes the guard)."
+                    if args.yes else "Nothing changed yet: run again with --yes.")
+        emit(args, res, "\n".join(text))
+
+
+def _sharing_arg(value: str) -> str:
+    if value == "git":
+        raise argparse.ArgumentTypeError(
+            "git is no longer a content sharing model: git carries the system only (engine, skills, templates). "
+            "Share content with drive or folder (brain share --to <folder>), or keep it local")
+    if value not in SHARING_MODELS:
+        raise argparse.ArgumentTypeError(f"choose one of {', '.join(SHARING_MODELS)}")
+    return value
 
 
 def cmd_sources(args):
@@ -2305,8 +3031,30 @@ def main(argv=None):
     p.add_argument("--manager")
     p.add_argument("--timezone")
     p.add_argument("--fiscal-year-start", type=int)
-    p.add_argument("--sharing", choices=["git", "drive", "local"])
+    p.add_argument("--sharing", type=_sharing_arg, metavar="{drive,folder,local}",
+                   help="how content (Company/, Teams/) reaches teammates; git carries the system only")
     p.set_defaults(fn=cmd_init)
+
+    p = sub.add_parser("share", help="share Company/ and Teams/ through a Google Shared Drive or shared folder "
+                                     "(dry run unless --yes; no --to shows the current state)")
+    p.add_argument("--to", help="the shared folder (Drive for Desktop, OneDrive, Dropbox, a network share)")
+    p.add_argument("--model", type=_sharing_arg, metavar="{drive,folder}", help="default: drive inside Google Drive, else folder")
+    p.add_argument("--yes", action="store_true", help="move and link; only after the user approved the dry run")
+    p.set_defaults(fn=cmd_share)
+
+    g = sub.add_parser("git", help="git carries the system only: see, stage and guard what a commit may hold")
+    gsub = g.add_subparsers(dest="sub", required=True)
+    gsub.add_parser("status", help="changes split into system (committable) and content (never committed)")
+    gsub.add_parser("stage", help="git add every changed system file and nothing else")
+    p = gsub.add_parser("check", help="fail if a commit would carry content (the pre-commit hook runs this)")
+    m = p.add_mutually_exclusive_group()
+    m.add_argument("--staged", action="store_true", help="check the staged changes (default)")
+    m.add_argument("--tracked", action="store_true", help="check every tracked file (CI)")
+    p = gsub.add_parser("hook", help="install the pre-commit guard in this repository")
+    p.add_argument("--remove", action="store_true")
+    p = gsub.add_parser("untrack", help="stop git tracking content (files stay on disk); dry run unless --yes")
+    p.add_argument("--yes", action="store_true")
+    g.set_defaults(fn=cmd_git)
 
     p = sub.add_parser("scaffold-sync", help="copy System/, Templates/, CLAUDE.md, Home.md, and vault settings "
                                              "into the scaffold new brains start from")
@@ -2377,8 +3125,8 @@ def main(argv=None):
     p = sub.add_parser("connect", help="mount a Desktop or Google Drive folder under Sources/")
     p.add_argument("path", nargs="?")
     p.add_argument("--name")
-    p.add_argument("--shared", action="store_true", help="record in brain.yaml so teammates can --sync")
-    p.add_argument("--sync", action="store_true", help="recreate shared mounts from brain.yaml")
+    p.add_argument("--shared", action="store_true", help="record in Company/company.yaml so teammates can --sync")
+    p.add_argument("--sync", action="store_true", help="recreate shared mounts from Company/company.yaml")
     p.set_defaults(fn=cmd_connect)
     sub.add_parser("sources", help="list mounted and shared sources, detect Google Drive").set_defaults(fn=cmd_sources)
     p = sub.add_parser("gdoc", help="resolve a .gdoc/.gsheet/.gslides pointer to its id and URL")

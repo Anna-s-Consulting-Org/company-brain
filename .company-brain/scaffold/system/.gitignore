@@ -1,9 +1,17 @@
-# Company Brain: what never leaves this machine
-/Personal/
-/Sources/
-/Exports/
+# Company Brain: git carries the system only (engine, skills, templates, System/ docs).
+# Content never goes to git. Company/ and Teams/ reach teammates through a Google Shared Drive or
+# shared folder (brain share); Personal/ never leaves this machine. No trailing slash on purpose:
+# with sharing, Company and Teams are symlinks, and `/Company/` would not match a link.
+# The pre-commit guard (brain git hook) and CI (brain git check --tracked) back this file up.
+/Company
+/Teams
+/Personal
+/Sources
+/Exports
 /index.md
 /log.md
+/brain.local.yaml
+/.share-backup
 /System/Build Plan.md
 
 # /company-brain:checkin keeps its open questions and answers here (personal)

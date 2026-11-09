@@ -45,7 +45,7 @@ A fact check compares notes with other notes. News that never reached the brain 
 - **Private channel only.** Cards and answers go only to me, never to a group chat, a team channel, a post, or a log others read. The open list lives in `<brain>/.checkin.json`, which is gitignored.
 - **Short.** One message per run, at most 3 cards. The helper formats every card the same way.
 - **Explicit only.** Never start a check-in because a conversation drifted near an old note. It runs when I ask or on my own schedule (`System/Automations.md`).
-- **Shared notes**: `done` stamps `last-checked:` into the note, and news edits it. With `sharing: git`, list the shared files changed and suggest a commit; company-layer changes go through a pull request. Never push or open one yourself.
+- **Shared notes**: `done` stamps `last-checked:` into the note, and news edits it. They reach teammates through the shared folder, never git: do not suggest a commit. Never push or open a pull request yourself.
 - Append one line to `log.md`: `## [YYYY-MM-DD] checkin <mode> | N asked, N answered, N open`. Names and facts stay out of it.
 
 ## Always

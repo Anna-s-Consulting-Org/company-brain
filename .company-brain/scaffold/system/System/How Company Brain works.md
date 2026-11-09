@@ -27,6 +27,10 @@ Company Brain is a folder of markdown notes that holds a company's mission, stra
 - **Personal** (`Personal/`): yours only, never leaves your machine.
 Links point up the stack, never down. Details: [[Layers and privacy]].
 
+## Two channels
+- **Content** (`Company/`, `Teams/`) reaches teammates through a Google Shared Drive or another shared folder (`./brain share`).
+- **The system** (engine, skills, templates, these `System/` notes) travels through git. Git never carries content: a pre-commit guard and CI enforce it. Details: [[Sharing models]].
+
 ## The operating rhythm
 | When | You run | What happens |
 |---|---|---|
@@ -42,7 +46,7 @@ Links point up the stack, never down. Details: [[Layers and privacy]].
 Every note links to what it serves. A weekly note links key results; a key result belongs to an objective whose `parent:` is a company key result; that ladders to an annual objective, which serves the [[Mission]]. Discovery nodes link outcome, opportunity, solution, experiment. Projects link solutions and key results. People link teams and managers. Hubs ([[Company]], [[Company OKRs]], [[Company Discovery]], [[Organization]]) gather each area with live Dataview tables. `brain refresh` regenerates the views that tie it together: OKR trees, discovery trees and canvases, the prioritization matrix, the org chart, and `index.md`.
 
 ## Where things live
-- Notes: `Company/`, `Teams/`, `Personal/`.
+- Notes: `Company/`, `Teams/` (shared folder), `Personal/` (this machine). Company settings: `Company/company.yaml`; this machine's sharing setup: `brain.local.yaml`.
 - External files: `Sources/` (symlinks to Desktop and Google Drive folders, read-only).
 - Method: [[Frameworks]]. Templates: `Templates/`. Skills catalog: [[Skills]]. Automations: [[Automations]]. Setup: [[Setup]].
-- Engine (hidden in Obsidian): `.company-brain/` holds the plugin, CLI, hooks, MCP server, and specs.
+- Engine (hidden in Obsidian): `.company-brain/` holds the plugin, CLI, hooks, MCP server, and specs. System settings: `brain.yaml`.

@@ -1,0 +1,11 @@
+# Company settings. Content: it travels with Company/ through the shared folder, never through git.
+# Set by /company-brain:setup or: brain init --company "Name" --timezone <TZ> --fiscal-year-start <M>
+
+company:
+  name: "Your Company"
+  fiscal_year_start: 1          # month the fiscal year starts (1 = calendar quarters)
+  timezone: UTC
+
+# Shared source mounts (managed by: brain connect <path> --name <Name> --shared).
+# Each teammate recreates them on their machine with: brain connect --sync
+sources: []

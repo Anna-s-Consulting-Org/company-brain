@@ -28,11 +28,11 @@ Fast-changing facts (counts, open items, balances, statuses) are timeless, dated
 
 ## 1. Layers and privacy (multiplayer)
 
-| Layer | Folder | Shared | In git |
+| Layer | Folder | Shared | Travels through |
 |---|---|---|---|
-| company | `Company/` | everyone | yes |
-| team | `Teams/<Team>/` | everyone, owned by the team | yes |
-| personal | `Personal/` | only the owner of this copy | no (gitignored) |
+| company | `Company/` | everyone | the shared folder (Google Shared Drive or another), never git |
+| team | `Teams/<Team>/` | everyone, owned by the team | the shared folder, never git |
+| personal | `Personal/` | only the owner of this copy | nothing: this machine only |
 
 - **Identity**: `Personal/Me.md` says who "me" is (`person`), my teams (`teams`, first is home), role, manager, timezone. Read it first. Missing: run the `setup` skill.
 - **Links point up, never down**: a note in `Company/` or `Teams/` must never link or embed a note in `Personal/`. Dataview queries may read `Personal/` (each person's query runs on their own data). Hooks and `brain check` flag leaks.
@@ -40,7 +40,9 @@ Fast-changing facts (counts, open items, balances, statuses) are timeless, dated
 - **Promotion** (personal to team to company) only on the user's explicit yes, through the `promote` skill (`brain promote`, a dry run until `--yes`): sanitized copy, diff shown, `promoted_to:` link added to the personal note.
 - **Default layer when unclear**: ask once; if no answer, personal. A private note in the wrong place can be promoted; a shared note in the wrong place has already leaked.
 - **Data from connectors** (calendar, Slack, email, Jira, Drive, meeting notes) lands in personal notes. It reaches a shared note only as content the user approved (a published team update, a promoted note).
-- **Sharing model** is `sharing.model` in `brain.yaml` (git, drive, local). With git: after shared-layer writes, list changed shared files and suggest a commit; company-layer changes go through a pull request. Never push, never open a pull request, never send a message on your own.
+- **Two channels, never mixed.** Content is every note in `Company/`, `Teams/` and `Personal/` (people, teams, meetings, goals, decisions) plus `Company/company.yaml` with the company's settings: `Company/` and `Teams/` reach teammates through the shared folder, `Personal/` stays on this machine. The system (`.company-brain/`, `System/`, `Templates/`, `CLAUDE.md`, `Home.md`, `brain.yaml`, `.claude/`, `.github/`, `.obsidian/` settings) travels through git. Git never carries content: `.gitignore` leaves it out, the pre-commit guard (`brain git hook`) refuses it, CI runs `brain git check --tracked`.
+- **Sharing model** is `sharing.model` in `brain.local.yaml` (this machine): `drive` (Google Shared Drive), `folder` (any other shared folder), or `local`. `brain share --to <folder>` links `Company/` and `Teams/` into it. After a shared-layer write, say whether it syncs now (drive, folder) or stays on this machine (local); never suggest a commit for a note. There is no pull request for content, so show the diff and get a yes before changing a company note.
+- **System changes** go through the `contribute` skill: `brain git status`, `brain git stage` (system files only), a commit on the user's yes. Never push, never open a pull request, never send a message on your own.
 
 ---
 
@@ -78,11 +80,13 @@ Filenames are globally unique on purpose (Obsidian resolves links by filename). 
 | Command | Use |
 |---|---|
 | `period [--date D]` | current year, quarter, ISO week, today's daily and weekly file names. Use it instead of computing dates |
-| `whoami` | identity, teams, period, sharing model |
+| `whoami` | identity, teams, period, content sharing model and location |
 | `new <kind> --title T [--layer L] [--team T] [--set k=v ...]` | create a note from its template, in the right folder, with the right name. Refuses duplicates (exit 3, prints the existing path) |
 | `refresh` | rebuild generated views: OKR trees, discovery trees and canvases, prioritization matrices, org chart, `index.md` |
 | `check [--severity warn]` | leaks, layer mismatches, AI-first gaps, OKR hygiene, orphans, unresolved links |
-| `init`, `team add`, `person add` | scaffolding (setup and org skills) |
+| `init`, `team add`, `person add` | scaffolding (setup and org skills). `init` also moves company settings out of `brain.yaml` and installs the git guard |
+| `share [--to F] [--yes]` | link `Company/` and `Teams/` into a Google Shared Drive or shared folder (dry run until `--yes`; no `--to` shows the state) |
+| `git status`, `git stage`, `git check [--staged\|--tracked]`, `git hook`, `git untrack` | git carries the system only: see changes by channel, stage system files only, the pre-commit and CI guard, stop tracking content |
 | `connect`, `sources`, `gdoc` | Desktop and Google Drive sources |
 | `export-pack` | read-only Claude Project pack |
 | `search "<query>" [--limit N] [--lexical]` | search the brain without an agent (JSON), for scripts and cron |
@@ -100,7 +104,7 @@ Kinds for `new`: objective, annual-plan, quarterly-plan, strategy, playing-to-wi
 
 Run as `/company-brain:<name>` or by asking in plain words. Catalog with outputs: `System/Skills.md`.
 
-setup, context, daily, weekly, team-weekly, okr, plan, strategy, vpc, ost, prioritize, roadmap, org, project, meeting, decide, board, promote, connect, ingest, health, export, checkin, reconcile, crew.
+setup, context, daily, weekly, team-weekly, okr, plan, strategy, vpc, ost, prioritize, roadmap, org, project, meeting, decide, board, promote, connect, ingest, health, export, checkin, reconcile, crew, contribute.
 
 Method notes for every framework (Value Proposition Canvas, Opportunity Solution Tree, Effort-Impact Matrix with RICE, OKRs, Strategy Kernel, Playing to Win, Business Model Canvas, Now-Next-Later Roadmap): `System/Frameworks/`. Read the relevant one before applying a framework.
 
@@ -135,6 +139,7 @@ Kanban card: `- [ ] 🔴 **Title** · @{YYYY-MM-DD}` with an indented context li
 
 - Do not use the obsidian-second-brain MCP tools (`mcp__plugin_obsidian-second-brain_*`) here: they point at a different (personal) vault. Use file tools, the `brain` CLI, or the `company-brain` brain MCP tools.
 - Do not write to `.company-brain/` (the engine) unless the user is developing the system itself.
+- Do not stage, commit or push content: nothing from `Company/`, `Teams/`, `Personal/`, no company or person names and no links to company notes in system files. Do not use `git add -A`, `git add .` or `git commit -a` in the brain; use `brain git stage`. Never bypass the guard with `--no-verify`.
 - Do not edit vendored files (`"mode": "copy"` in `.company-brain/upstream.json`, for example the freshness lint). A hook blocks it, and tests and CI verify their checksums. Take upstream changes with `./brain upstream-check --copy`.
 - Do not edit approved mission, vision, values, or strategy text without showing the diff and getting a yes.
 - Do not create OKRs, plans, or roadmap moves for a team without that team's lead; draft them as proposals.

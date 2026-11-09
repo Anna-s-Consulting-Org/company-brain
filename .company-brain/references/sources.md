@@ -14,7 +14,7 @@ Sources/
 ```
 
 - `Sources/` is gitignored: symlinks are machine paths and differ per person.
-- `--shared` also records the mount in `brain.yaml` under `sources:` in a portable form (`gdrive: "Shared drives/PS | Common"` or `desktop: "GTM & Strategy"`). A teammate runs `brain connect --sync` and gets the same mounts resolved against their own Desktop and Drive.
+- `--shared` also records the mount in `Company/company.yaml` under `sources:` (content: it names company folders, so it travels with `Company/` through the shared folder, never git) in a portable form (`gdrive: "Shared drives/PS | Common"` or `desktop: "GTM & Strategy"`). A teammate runs `brain connect --sync` and gets the same mounts resolved against their own Desktop and Drive.
 - Google Drive for Desktop mounts at `~/Library/CloudStorage/GoogleDrive-<account>/` with `My Drive/` and `Shared drives/` inside. `brain sources` lists detected Drive accounts. Prefer mirror mode for folders you ingest often; stream mode works but each first read downloads the file.
 - Large folders slow Obsidian indexing. Mount the specific folder you need, not a whole drive.
 
