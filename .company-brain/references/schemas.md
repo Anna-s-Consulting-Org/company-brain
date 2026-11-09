@@ -99,7 +99,7 @@ works_on:                  # written by `brain person works-on`, append-only his
   - project: "[[Onboarding revamp]]"   # the project note when one matches (name, aliases, refs), else the name the source uses
     role: lead             # owner | lead | contributor | reviewer | stakeholder
     source: "Linear project ONB, https://linear.app/acme/project/onb"
-    confidence: high       # stated | high, or medium where brain.yaml people.works_on_min_confidence allows it
+    confidence: high       # stated | high, or medium where Company/company.yaml people.works_on_min_confidence allows it
     from: YYYY-MM-DD       # TBD when the source does not say
     until: present         # or the date the work ended
     learned: YYYY-MM-DD    # when the brain first recorded it

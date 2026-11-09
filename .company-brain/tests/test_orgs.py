@@ -49,7 +49,7 @@ def block(path: Path, key: str) -> str:
 def brain(tmp_path):
     dst = tmp_path / "brain"
     shutil.copytree(BRAIN, dst, ignore=shutil.ignore_patterns(".git", "__pycache__", "*.png", ".pytest_cache"))
-    ok(dst, "init", "--company", "Acme", "--me", "Ana Lopez", "--role", "PM", "--team", "Platform", "--sharing", "git")
+    ok(dst, "init", "--company", "Acme", "--me", "Ana Lopez", "--role", "PM", "--team", "Platform")
     ok(dst, "person", "add", "Sam Lee", "--role", "VP Product", "--team", "Platform")
     ok(dst, "person", "add", "Jane Smith", "--role", "VP Engineering", "--company", "Globex", "--kind", "customer",
        "--owner", "Ana Lopez")

@@ -2252,7 +2252,8 @@ def resolve_project(notes, ref):
 
 
 def works_on_threshold(root: Path) -> str:
-    """Lowest confidence `brain person works-on` records on a shared profile (brain.yaml people.works_on_min_confidence)."""
+    """Lowest confidence `brain person works-on` records on a shared profile (people.works_on_min_confidence,
+    a company policy in Company/company.yaml)."""
     v = _norm((load_config(root).get("people") or {}).get("works_on_min_confidence") or "high")
     return v if v in THRESHOLDS else "high"
 
@@ -2913,7 +2914,7 @@ CONTENT_PATTERNS = (".obsidian/workspace*",)  # per-device state that lists the 
 CONTENT_TYPES = {"objective", "plan", "strategy", "playing-to-win", "vpc", "bmc", "outcome", "opportunity",
                  "solution", "experiment", "project", "meeting", "one-on-one", "decision", "knowledge",
                  "source", "person", "team", "daily", "weekly", "team-update", "team-weekly", "me",
-                 "mission", "vision", "values", "crew-log", "crew-lessons"}
+                 "mission", "vision", "values", "crew-log", "crew-lessons", "stakeholder", "company"}
 GIT_HOOK_MARK = "company-brain: git carries the system only"
 SYNC_ROOTS = ("Library/CloudStorage", "Library/Mobile Documents", "Dropbox", "Google Drive", "iCloudDrive")
 
@@ -3862,7 +3863,7 @@ def record_work(root: Path, person: str, project: str, role: str, source: str, c
         raise SystemExit(f"error: --confidence must be one of: {', '.join(CONFIDENCE_RANK)}")
     if CONFIDENCE_RANK[confidence] < CONFIDENCE_RANK[threshold]:
         return {"recorded": False, "code": 5, "reason": f"confidence {confidence} is below this brain's threshold "
-                f"({threshold}, brain.yaml people.works_on_min_confidence). Ask the user to confirm; once they do, "
+                f"({threshold}, people.works_on_min_confidence in Company/company.yaml). Ask the user to confirm; once they do, "
                 "record it with --confidence stated and the user as the source."}
     source = re.sub(r"\s+", " ", str(source or "")).replace('"', "'").strip()
     if not source:

@@ -53,7 +53,7 @@ def block(path: Path, key: str = "works-on") -> str:
 def brain(tmp_path):
     dst = tmp_path / "brain"
     shutil.copytree(BRAIN, dst, ignore=shutil.ignore_patterns(".git", "__pycache__", "*.png", ".pytest_cache"))
-    ok(dst, "init", "--company", "Acme", "--me", "Ana Lopez", "--role", "PM", "--team", "Platform", "--sharing", "git")
+    ok(dst, "init", "--company", "Acme", "--me", "Ana Lopez", "--role", "PM", "--team", "Platform")
     ok(dst, "person", "add", "Sam Lee", "--role", "VP Product", "--team", "Platform",
        "--email", "sam@acme.com", "--handle", "github:samlee", "--alias", "Sammy")
     ok(dst, "new", "project", "--layer", "team", "--team", "Platform", "--title", "Onboarding revamp",
@@ -149,7 +149,7 @@ def test_below_the_confidence_threshold_nothing_is_written(brain):
     r = works_on(brain, "Sam Lee", "Data lake", confidence="medium", source="Slack #data")
     assert r.returncode == 5 and "below this brain's threshold (high" in r.stdout
     assert (brain / SAM).read_text(encoding="utf-8") == before
-    cfg = brain / "brain.yaml"
+    cfg = brain / "Company" / "company.yaml"  # a company policy: it travels with the content
     cfg.write_text(cfg.read_text(encoding="utf-8").replace("works_on_min_confidence: high", "works_on_min_confidence: medium"),
                    encoding="utf-8")
     assert works_on(brain, "Sam Lee", "Data lake", confidence="medium", source="Slack #data").returncode == 0

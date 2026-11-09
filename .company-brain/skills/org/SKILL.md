@@ -62,7 +62,7 @@ Score two matches and take the lower one as the confidence:
 - The role is the strongest signal's role. A single low signal is not work.
 
 ### Record
-- **At or above the brain's threshold** (`people.works_on_min_confidence` in `brain.yaml`, default `high`):
+- **At or above the brain's threshold** (`people.works_on_min_confidence` in `Company/company.yaml`, default `high`):
   `brain person works-on "<email, system:id handle, or full name>" --project "<project note name, alias or ref; else the name the source uses>" --role <owner|lead|contributor|reviewer|stakeholder> --source "<System> <record>, <URL>" --confidence <stated|high> [--since YYYY-MM-DD]`.
   Identify the person by email or handle when the source shows one: it is the strongest match. Use `--dry-run` to show the change first when the user is present.
 - **Below the threshold** the command writes nothing and exits 5. List those signals in your report; when the user confirms one, record it with `--confidence stated --source "stated by <user> YYYY-MM-DD"`.
