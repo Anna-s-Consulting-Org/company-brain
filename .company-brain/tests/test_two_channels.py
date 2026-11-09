@@ -119,6 +119,21 @@ def test_init_moves_legacy_settings_out_of_brain_yaml(fresh):
     assert who["company"] == "Globex"
 
 
+def test_a_new_company_yaml_keeps_the_legacy_settings(fresh, tmp_path):
+    (fresh / "Company" / "company.yaml").unlink()
+    (fresh / "brain.yaml").write_text("brain:\n  name: Company Brain\n\ncompany:\n  name: \"Globex\"\n"
+                                      "  fiscal_year_start: 4\n\nsources:\n  - name: GTM\n    desktop: GTM\n",
+                                      encoding="utf-8")
+    before = json.loads(cli(fresh, "whoami", check=True).stdout)
+    folder = tmp_path / "Docs"
+    folder.mkdir()
+    cli(fresh, "connect", str(folder), "--name", "Docs", "--shared", check=True)  # creates Company/company.yaml
+    after = json.loads(cli(fresh, "whoami", check=True).stdout)
+    assert after["company"] == "Globex" and after["period"]["quarter"] == before["period"]["quarter"]
+    text = (fresh / "Company" / "company.yaml").read_text(encoding="utf-8")
+    assert "GTM" in text and "Docs" in text
+
+
 def test_shared_sources_are_recorded_with_the_content(fresh, tmp_path):
     folder = tmp_path / "Strategy docs"
     folder.mkdir()
@@ -177,10 +192,29 @@ def test_the_hook_refuses_links_and_paths_to_company_content(repo):
 
 def test_generic_examples_and_scaffold_hubs_pass(repo):
     doc = repo / "System" / "Skills.md"
-    doc.write_text(doc.read_text(encoding="utf-8") + "\nExample: [[Platform]], [[Company OKRs]], [[My Board]], "
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nExample: [[Company OKRs]], [[My Board]], "
                    "`Teams/<Team>/Weekly/`, [[OKR Tree - 2000-Q1]].\n", encoding="utf-8")
     res = json.loads(cli(repo, "--json", "git", "stage", check=True).stdout)
     assert res["staged"] == ["System/Skills.md"] and not res["problems"]
+
+
+def test_markers_already_in_the_file_are_not_new_disclosures(repo):
+    spec = repo / ".company-brain" / "references" / "schemas.md"
+    assert "[[Platform]]" in spec.read_text(encoding="utf-8")  # a shipped example that matches the test team
+    spec.write_text(spec.read_text(encoding="utf-8") + "\nAnother example: [[Platform]].\n", encoding="utf-8")
+    assert not json.loads(cli(repo, "--json", "git", "stage", check=True).stdout)["problems"]
+    doc = repo / "System" / "Skills.md"
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nSee [[Platform]].\n", encoding="utf-8")
+    problems = json.loads(cli(repo, "--json", "git", "stage").stdout)["problems"]
+    assert any("[[Platform]]" in p["problem"] for p in problems)
+
+
+def test_an_added_line_that_looks_like_a_diff_header_does_not_stop_the_scan(repo):
+    doc = repo / "System" / "Skills.md"
+    doc.write_text(doc.read_text(encoding="utf-8") + "\n++ heading\nAsk Dana Smith for numbers.\n", encoding="utf-8")
+    git(repo, "add", "System/Skills.md")
+    r = cli(repo, "git", "check", "--staged")
+    assert r.returncode == 1 and "Dana Smith" in r.stderr
 
 
 def test_the_hook_refuses_a_content_note_in_a_system_folder(repo):
@@ -236,6 +270,12 @@ def test_untrack_takes_content_out_of_git_and_keeps_the_files(repo):
     cli(repo, "git", "untrack", "--yes", check=True)
     git(repo, "commit", "-q", "-m", "content leaves git")  # a removal passes the hook
     assert cli(repo, "git", "check", "--tracked").returncode == 0 and meeting.is_file()
+
+
+def test_untrack_does_not_accept_a_trailing_slash_ignore_line(repo):
+    ignore = repo / ".gitignore"
+    ignore.write_text(ignore.read_text(encoding="utf-8").replace("/Company\n", "/Company/\n"), encoding="utf-8")
+    assert "/Company" in json.loads(cli(repo, "--json", "git", "untrack", check=True).stdout)["gitignore_missing"]
 
 
 # --- content travels through a shared folder ----------------------------------------------------------

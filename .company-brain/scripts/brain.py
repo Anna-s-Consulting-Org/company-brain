@@ -775,7 +775,7 @@ def freshness_findings_for(root: Path, path: Path, today=None) -> list:
 def _git(root: Path, *args: str, check: bool = True, binary: bool = False):
     r = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=not binary)
     if check and r.returncode:
-        err = r.stderr.decode() if binary else r.stderr
+        err = r.stderr.decode("utf-8", "replace") if binary else r.stderr
         raise SystemExit(f"error: git {' '.join(args)}: {err.strip()}")
     return r.stdout
 
@@ -855,6 +855,15 @@ def ensure_company_config(root: Path) -> Path:
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(SCAFFOLD / "company" / COMPANY_CONFIG, path)
+        # an older brain still keeps these in brain.yaml: carry them over, or the scaffold's placeholders
+        # (name, fiscal year, no sources) would override them in load_config
+        legacy = legacy_config(root)
+        for key, value in (legacy.get("company") or {}).items():
+            if value not in (None, "") and not isinstance(value, (dict, list)):
+                _set_yaml(path, "company", key, str(value))
+        for src in as_list(legacy.get("sources")):
+            if isinstance(src, dict) and src.get("name"):
+                add_shared_source(root, src["name"], {k: v for k, v in src.items() if k != "name"})
     return path
 
 
@@ -896,14 +905,24 @@ def migrate_config(root: Path) -> list:
     current = _read_yaml(root / COMPANY_CONFIG)
     for key, value in (legacy.get("company") or {}).items():
         have = (current.get("company") or {}).get(key)
-        if value not in (None, "") and (company_new or have in (None, "", PLACEHOLDER_COMPANY)) and have != value:
+        if value in (None, "") or have == value:
+            continue
+        if company_new or have in (None, "", PLACEHOLDER_COMPANY):
             set_company_setting(root, key, str(value))
             done.append(f"company.{key} -> {COMPANY_CONFIG.as_posix()}")
+        else:
+            done.append(f"company.{key} {value!r} dropped: {COMPANY_CONFIG.as_posix()} already has {have!r}")
     sources = [s for s in as_list(legacy.get("sources")) if isinstance(s, dict) and s.get("name")]
     if sources and not as_list(current.get("sources")):
         for s in sources:
             add_shared_source(root, s["name"], {k: v for k, v in s.items() if k != "name"})
         done.append(f"sources ({len(sources)}) -> {COMPANY_CONFIG.as_posix()}")
+    elif sources:
+        done.append(f"sources dropped ({', '.join(s['name'] for s in sources)}): "
+                    f"{COMPANY_CONFIG.as_posix()} already lists sources")
+    remote = str((legacy.get("sharing") or {}).get("remote") or "")
+    if remote:
+        done.append(f"sharing.remote {remote!r} dropped: git carries the system only; keep it as a git remote")
     model = str((legacy.get("sharing") or {}).get("model") or "")
     if model and not (root / LOCAL_CONFIG).is_file():
         set_sharing(root, model=model if model in SHARING_MODELS else "local")
@@ -1905,18 +1924,20 @@ SYNC_ROOTS = ("Library/CloudStorage", "Library/Mobile Documents", "Dropbox", "Go
 
 def git_toplevel(root: Path) -> Path | None:
     try:
-        r = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
-    except OSError:
+        out = _git(root, "rev-parse", "--show-toplevel", check=False).strip()
+    except OSError:  # git not installed
         return None
-    return Path(r.stdout.strip()).resolve() if r.returncode == 0 and r.stdout.strip() else None
+    return Path(out).resolve() if out else None
+
+
+def _git_text(top: Path, *args: str, check: bool = True) -> str:
+    """git output as UTF-8 text, paths unquoted, run from the repository top so paths are relative to it."""
+    return _git(top, "-c", "core.quotePath=false", *args, check=check, binary=True).decode("utf-8", "replace")
 
 
 def _git_z(top: Path, *args: str) -> list:
-    """NUL-separated git output, run from the repository top so every path is relative to it."""
-    r = subprocess.run(["git", "-C", str(top), "-c", "core.quotePath=false", *args], capture_output=True)
-    if r.returncode != 0:
-        raise SystemExit(f"error: git {' '.join(args)}: {r.stderr.decode('utf-8', 'replace').strip()}")
-    return [p for p in r.stdout.decode("utf-8", "replace").split("\0") if p]
+    """NUL-separated git output (paths with spaces and non-ASCII names intact)."""
+    return [p for p in _git_text(top, *args).split("\0") if p]
 
 
 def _brain_rel(root: Path, top: Path, git_path: str) -> str | None:
@@ -1959,54 +1980,64 @@ def _generic_names() -> set:
     return names
 
 
+def _words_re(words) -> re.Pattern | None:
+    words = sorted({w for w in words if w}, key=len, reverse=True)
+    return re.compile(r"(?<![\w])(" + "|".join(map(re.escape, words)) + r")(?![\w])") if words else None
+
+
 def content_markers(root: Path) -> dict:
     """What would identify this company if it appeared in a system file: the company name,
-    people's full names, team names, and links or paths to its own notes."""
-    notes = scan(root)
+    people's full names, team names, and links or paths to its own notes. Built from file names
+    and paths only, so a commit never reads (or, in Drive stream mode, downloads) the notes."""
     generic = _generic_names()
     company = str((load_config(root).get("company") or {}).get("name") or "").strip()
-    people, teams, note_names, note_paths = set(), set(), {}, set()
-    for n in notes:
-        if n.folder_layer not in ("company", "team", "personal"):
+    people, note_names, note_paths = set(), {}, []
+    for path in iter_md(root):
+        rel = path.relative_to(root).as_posix()
+        if rel.split("/")[0] not in ("Company", "Teams", "Personal"):
             continue
-        low = n.name.lower()
-        if n.type == "person" and " " in n.name.strip():
-            people.add(n.name.strip())
-        # team hubs are skipped: their names are everyday words (Platform, Growth) that shipped docs use as
-        # examples; the team still shows through a path into Teams/<team>/ and its notes' specific names
-        if low in generic or re.match(r"(my )?okr tree - ", low) or n.type == "team":
+        name = path.stem.strip()
+        if rel.startswith("Company/Org/People/") and " " in name:
+            people.add(name)
+        low = name.lower()
+        if low in generic or re.match(r"(my )?okr tree - ", low):
             continue
-        note_names.setdefault(low, n.rel)
-        note_paths.add(n.rel)
-    if (root / "Teams").is_dir():
-        teams = {p.name for p in (root / "Teams").iterdir() if p.is_dir() and not p.name.startswith((".", "{{"))}
-    return {"company": company if company and company not in (PLACEHOLDER_COMPANY, "TBD", "Your Company Name") else "",
-            "people": sorted(people), "teams": sorted(teams), "note_names": note_names, "note_paths": note_paths}
+        note_names.setdefault(low, rel)
+        note_paths.append((rel, rel[:-3]))
+    teams = sorted(p.name for p in (root / "Teams").iterdir() if p.is_dir() and not p.name.startswith((".", "{{"))) \
+        if (root / "Teams").is_dir() else []
+    company = company if company not in (PLACEHOLDER_COMPANY, "TBD", "Your Company Name") else ""
+    return {"company": company, "company_re": _words_re([company]), "people": sorted(people),
+            "people_re": _words_re(people), "teams": teams, "note_names": note_names, "note_paths": note_paths}
 
 
-def scan_added_line(line: str, markers: dict) -> list:
+def scan_added_line(line: str, markers: dict, known: str = "") -> list:
+    """What an added line discloses. A marker already present in `known` (the file's HEAD version) is not
+    a new disclosure: shipped docs keep their examples, and a company named like a tool they mention
+    (Slack, Linear) does not block edits to those docs."""
     found = []
-    if markers["company"] and re.search(rf"(?<![\w]){re.escape(markers['company'])}(?![\w])", line):
+    if markers["company_re"] and markers["company_re"].search(line) and markers["company"] not in known:
         found.append(f"the company name {markers['company']!r}")
-    for person in markers["people"]:
-        if re.search(rf"(?<![\w]){re.escape(person)}(?![\w])", line):
+    for person in sorted({m.group(1) for m in markers["people_re"].finditer(line)} if markers["people_re"] else ()):
+        if person not in known:
             found.append(f"a person's name {person!r}")
     for target in (m.group(2).strip() for m in LINK_RE.finditer(line)):
         rel = markers["note_names"].get(target.split("/")[-1].lower())
-        if rel:
+        if rel and f"[[{target}" not in known:
             found.append(f"a link to company content [[{target}]] ({rel})")
-    for team in markers["teams"]:
-        if f"Teams/{team}" in line:
-            found.append(f"a path into team {team!r}")
-    for rel in markers["note_paths"]:
-        if rel in line or rel[:-3] in line:
-            found.append(f"a path to company content {rel!r}")
+    if "Teams/" in line:
+        for team in markers["teams"]:
+            if f"Teams/{team}" in line and f"Teams/{team}" not in known:
+                found.append(f"a path into team {team!r}")
+    if any(top in line for top in ("Company/", "Teams/", "Personal/")):
+        for rel, stem in markers["note_paths"]:
+            if stem in line and stem not in known:
+                found.append(f"a path to company content {rel!r}")
     return found
 
 
-def _staged_frontmatter_type(root: Path, git_path: str) -> tuple:
-    r = subprocess.run(["git", "-C", str(root), "show", f":{git_path}"], capture_output=True)
-    text = r.stdout.decode("utf-8", "replace") if r.returncode == 0 else ""
+def _staged_frontmatter_type(top: Path, git_path: str) -> tuple:
+    text = _git_text(top, "show", f":{git_path}")
     fm, _ = split_frontmatter(text)
     return str(fm.get("type") or ""), ("<%" in text or "{{" in text)
 
@@ -2035,26 +2066,31 @@ def git_check_staged(root: Path) -> list:
                                                         "Company/, Teams/ or Personal/, not in a system folder"})
     if system_paths:
         markers = content_markers(root)
-        r = subprocess.run(["git", "-C", str(top), "-c", "core.quotePath=false", "diff", "--cached", "--no-renames",
-                            "-U0", "--no-color", "--no-ext-diff", "--", *system_paths], capture_output=True)
-        current, lineno = None, 0
-        for line in r.stdout.decode("utf-8", "replace").split("\n"):
-            if line.startswith("+++ "):
+        diff = _git_text(top, "diff", "--cached", "--no-renames", "-U0", "--no-color", "--no-ext-diff", "--",
+                         *system_paths)  # fails closed: an error stops the commit instead of skipping the scan
+        current, known, lineno, in_header = None, "", 0, False
+        for line in diff.split("\n"):
+            if line.startswith("diff --git "):
+                current, in_header = None, True
+            elif in_header and line.startswith("+++ "):
+                # a header only before the file's first hunk: an added line "++ x" also reads "+++ x"
                 p = line[4:].strip().strip('"')
                 current = _brain_rel(root, top, p[2:]) if p.startswith("b/") else None
+                known = _git_text(top, "show", f"HEAD:{p[2:]}", check=False) if current else ""
             elif line.startswith("@@"):
+                in_header = False
                 m = re.search(r"\+(\d+)", line)
                 lineno = int(m.group(1)) if m else 0
-            elif line.startswith("+") and current:
-                for what in scan_added_line(line[1:], markers):
+            elif not in_header and line.startswith("+") and current:
+                for what in scan_added_line(line[1:], markers, known):
                     problems.append({"path": f"{current}:{lineno}", "problem": f"adds {what}"})
                 lineno += 1
     return problems
 
 
-def git_tracked_content(root: Path) -> list:
+def git_tracked_content(root: Path, top: Path | None = None) -> list:
     """Files git tracks that it must not: [{path, kind, problem}]."""
-    top = git_toplevel(root)
+    top = top or git_toplevel(root)
     if not top:
         return []
     allow, out = git_allow(root), []
@@ -2095,19 +2131,16 @@ def git_stage(root: Path) -> dict:
     top = git_toplevel(root)
     paths = [_top_rel(root, top, i["path"]) for i in st["system"]]
     if paths:
-        r = subprocess.run(["git", "-C", str(top), "--literal-pathspecs", "add", "-A", "--", *paths],
-                           capture_output=True, text=True)
-        if r.returncode != 0:
-            raise SystemExit(f"error: git add: {r.stderr.strip()}")
+        _git(top, "--literal-pathspecs", "add", "-A", "--", *paths)
     return {"staged": [i["path"] for i in st["system"]], "left_out": [i["path"] for i in st["content"] + st["other"]],
             "problems": git_check_staged(root)}
 
 
 def _hooks_dir(root: Path) -> Path:
-    r = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-path", "hooks"], capture_output=True, text=True)
-    if r.returncode != 0:
+    out = _git(root, "rev-parse", "--git-path", "hooks", check=False).strip()
+    if not out:
         raise SystemExit(f"error: {root} is not inside a git repository")
-    p = Path(r.stdout.strip())
+    p = Path(out)
     return (p if p.is_absolute() else (Path(root) / p)).resolve()
 
 
@@ -2155,8 +2188,7 @@ def git_hook_installed(root: Path) -> bool:
     return hook.is_file() and GIT_HOOK_MARK in hook.read_text(encoding="utf-8", errors="replace")
 
 
-GITIGNORE_CONTENT = ["/Company", "/Teams", "/Personal", "/Sources", "/Exports", "/index.md", "/log.md",
-                     "/.checkin.json", "/brain.local.yaml", "/.share-backup"]
+GITIGNORE_CONTENT = ["/" + p for p in CONTENT_TOP + CONTENT_FILES]
 
 
 def git_untrack(root: Path, yes: bool = False) -> dict:
@@ -2164,16 +2196,14 @@ def git_untrack(root: Path, yes: bool = False) -> dict:
     tracked = [t for t in git_tracked_content(root) if t["kind"] == "content"]
     ignore = root / ".gitignore"
     have = set(ignore.read_text(encoding="utf-8").splitlines()) if ignore.is_file() else set()
-    missing = [l for l in GITIGNORE_CONTENT if l not in have and l + "/" not in have]
+    # "/Company/" does not count: a trailing slash matches folders only, not the link `brain share` makes
+    missing = [l for l in GITIGNORE_CONTENT if l not in have and l.lstrip("/") not in have]
     res = {"tracked": [t["path"] for t in tracked], "gitignore_missing": missing, "written": yes}
     if yes:
         top = git_toplevel(root)
         paths = [_top_rel(root, top, t["path"]) for t in tracked]
         for i in range(0, len(paths), 200):
-            r = subprocess.run(["git", "-C", str(top), "--literal-pathspecs", "rm", "-r", "--cached", "--quiet",
-                                "--", *paths[i:i + 200]], capture_output=True, text=True)
-            if r.returncode != 0:
-                raise SystemExit(f"error: git rm --cached: {r.stderr.strip()}")
+            _git(top, "--literal-pathspecs", "rm", "-r", "--cached", "--quiet", "--", *paths[i:i + 200])
         if missing:
             text = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
             ignore.write_text(text.rstrip("\n") + "\n\n# Content never travels through git (brain git untrack)\n"
@@ -2258,6 +2288,13 @@ def share_apply(root: Path, plan: dict) -> list:
     target = Path(plan["to"])
     target.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    probe = root / f".share-link-test-{stamp}"
+    try:  # before moving anything: a failed link after a move would leave Company/ gone and unlinked
+        probe.symlink_to(target, target_is_directory=True)
+        probe.unlink()
+    except OSError as exc:
+        raise SystemExit(f"error: cannot create links in {root}: {exc}. Nothing was moved. On Windows, turn on "
+                         "Developer Mode (or run as administrator) so links can be created")
     for step in plan["steps"]:
         local, dest = Path(step["local"]), Path(step["shared"])
         if step["action"] == "none":
@@ -2313,7 +2350,8 @@ def channel_issues(root: Path) -> list:
         issues.append({"severity": "warn", "path": "brain.yaml",
                        "message": "sharing.model: git is retired: git carries the system only. Share Company/ and "
                                   "Teams/ with `brain share --to <Drive or shared folder>`, or set local"})
-    tracked = git_tracked_content(root) if git_toplevel(root) else []
+    top = git_toplevel(root)
+    tracked = git_tracked_content(root, top) if top else []
     by_top = {}
     for t in tracked:
         by_top.setdefault((t["kind"], t["path"].split("/")[0]), []).append(t["path"])
@@ -2323,7 +2361,7 @@ def channel_issues(root: Path) -> list:
                                    "Run `brain git untrack` (files stay on disk)") if kind == "content" else
                                   f"git tracks {len(paths)} file(s) that are not system paths; add them to "
                                   "`git.allow` in brain.yaml or untrack them"})
-    if git_toplevel(root) and not git_hook_installed(root):
+    if top and not git_hook_installed(root):
         issues.append({"severity": "info", "path": ".git/hooks/pre-commit",
                        "message": "the git guard is not installed: run `brain git hook` so commits carry system files only"})
     location = (cfg.get("sharing") or {}).get("location")
@@ -2342,8 +2380,9 @@ def channel_issues(root: Path) -> list:
                 issues.append({"severity": "error", "path": name,
                                "message": f"links to {os.readlink(p)}, which is not reachable on this machine"})
             elif not p.is_symlink():
+                state = "a local folder" if p.exists() else "missing"
                 issues.append({"severity": "warn", "path": name,
-                               "message": f"sharing.model is {model} but {name}/ is a local folder; "
+                               "message": f"sharing.model is {model} but {name}/ is {state}; "
                                           "run `brain share --to <folder>` to link it"})
     return issues
 
