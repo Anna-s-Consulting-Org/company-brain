@@ -47,6 +47,12 @@ This note is the shared profile of <% tp.file.title %> (<% role %>): intranet-le
 Nothing recorded yet. This list fills on the next `brain refresh` from the owner field and the `## People` table of project notes, objective and key result owners, and work recorded from connected systems with `brain person works-on`.
 <!-- brain:auto:end works-on -->
 
+Live in Obsidian (owners only; the list above adds contributors and connected systems on `brain refresh`):
+```dataview
+LIST FROM "Company" OR "Teams"
+WHERE (type = "project" OR type = "objective") AND contains(flat(list(owner)), this.file.link)
+```
+
 ## Reports
 ```dataview
 LIST FROM "Company/Org/People" WHERE contains(string(manager), this.file.name)
@@ -56,7 +62,7 @@ LIST FROM "Company/Org/People" WHERE contains(string(manager), this.file.name)
 ```dataview
 TABLE date, meeting_type
 FROM "Company" OR "Teams"
-WHERE type = "meeting" AND contains(string(attendees), this.file.name)
+WHERE type = "meeting" AND contains(attendees, this.file.link)
 SORT date DESC
 LIMIT 10
 ```
@@ -66,5 +72,5 @@ Visible only to you: this query reads your own Personal/ folder, which is never 
 ```dataview
 TABLE WITHOUT ID file.link AS "Note", type, relationship, last_interaction, follow_up
 FROM "Personal"
-WHERE (type = "stakeholder" OR type = "one-on-one") AND contains(string(person), this.file.name)
+WHERE (type = "stakeholder" OR type = "one-on-one") AND person = this.file.link
 ```

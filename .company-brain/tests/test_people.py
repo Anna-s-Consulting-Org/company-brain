@@ -225,7 +225,8 @@ def test_refresh_migrates_legacy_profiles_and_is_idempotent(brain):
                       "this.file.name))\n```\nHand-written note kept.\n\n## Reports\n- none\n", encoding="utf-8")
     ok(brain, "refresh")
     text = legacy.read_text(encoding="utf-8")
-    assert "```dataview\nLIST FROM \"Company\" OR \"Teams\"" not in text and "Hand-written note kept." in text
+    assert "contains(string(owner), this.file.name)" not in text and "Hand-written note kept." in text
+    assert engine.LIVE_WORKS_ON in text  # the legacy query became the live, link-matched one
     assert text.index("## Works on") < text.index("<!-- brain:auto:start works-on -->") < text.index("## Reports")
     assert "Old Timer.md" not in ok(brain, "refresh")  # second run changes nothing
 
@@ -284,3 +285,89 @@ def test_org_skill_spells_out_detection_confidence_and_privacy():
         assert needle in text, needle
     for skill in ("meeting", "weekly", "ingest"):
         assert "works-on rules" in (ENGINE / "skills" / skill / "SKILL.md").read_text(encoding="utf-8"), skill
+
+
+# --- review fixes: each case below was a bug once --------------------------------------------------
+
+def test_dry_run_writes_nothing_even_with_create(brain):
+    before = (brain / SAM).read_text(encoding="utf-8")
+    out = ok(brain, "person", "works-on", "Sam Lee", "--project", "Onboarding revamp", "--role", "lead",
+             "--source", "Linear project ONB", "--confidence", "high", "--dry-run")
+    assert out.startswith("would record") and (brain / SAM).read_text(encoding="utf-8") == before
+    out = ok(brain, "person", "works-on", "Dana Wu", "--project", "X", "--role", "owner", "--source", "Linear X",
+             "--confidence", "high", "--create", "--dry-run")
+    assert "created the profile" in out and not (brain / "Company" / "Org" / "People" / "Dana Wu.md").exists()
+
+
+def test_create_refuses_a_name_another_note_already_has(brain):
+    other = brain / "Company" / "Knowledge" / "Eve Park.md"
+    other.write_text(f"---\ndate: {TODAY}\ntype: knowledge\ntags: [knowledge]\nai-first: true\nlayer: company\n---\n\n"
+                     "# Eve Park\n\n## For future agent\nNot a profile.\n", encoding="utf-8")
+    r = works_on(brain, "Eve Park", "Onboarding revamp", "--create")
+    assert r.returncode == 1 and "Company/Knowledge/Eve Park.md already has that name" in r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_sources_with_backslashes_stay_valid_yaml(brain):
+    yaml = pytest.importorskip("yaml")
+    source = 'Drive C:\\new\\folder "Q4" end\\'
+    assert works_on(brain, "Sam Lee", "Onboarding revamp", source=source).returncode == 0
+    head = (brain / SAM).read_text(encoding="utf-8").split("---\n")[1]
+    stored = yaml.safe_load(head)["works_on"][0]["source"]
+    assert stored == source.replace('"', "'") == fm(brain / SAM)["works_on"][0]["source"]
+
+
+def test_ending_a_role_that_is_not_open_ends_nothing(brain):
+    works_on(brain, "Sam Lee", "Onboarding revamp", "--since", "2026-09-01", role="lead")
+    r = works_on(brain, "Sam Lee", "Onboarding revamp", "--ended", role="reviewer")
+    assert r.returncode == 3 and "no open reviewer works_on entry" in r.stdout
+    assert fm(brain / SAM)["works_on"][0]["until"] == "present"
+    assert works_on(brain, "Sam Lee", "Onboarding revamp", "--ended", "--until", "2026-10-31", role="lead").returncode == 0
+    entry = fm(brain / SAM)["works_on"][0]
+    assert (entry["from"], entry["until"]) == ("2026-09-01", "2026-10-31")
+
+
+def test_stakeholder_note_by_alias_is_named_after_the_person(brain):
+    assert "Stakeholder - Sam Lee.md" in ok(brain, "new", "stakeholder", "--title", "Sammy")
+    r = cli(brain, "new", "stakeholder", "--title", "Sam Lee")
+    assert r.returncode == 3 and "exists" in r.stdout  # one note per person, whatever name is used
+
+
+def test_every_co_owner_gets_the_work(brain):
+    ok(brain, "new", "project", "--title", "Shared thing", "--set", 'owner=["[[Ana Lopez]]", "[[Sam Lee]]"]')
+    note = brain / "Company" / "Projects" / "Shared thing.md"
+    note.write_text(re.sub(r"\| Owner \|.*\|", "| Owner | TBD |", note.read_text(encoding="utf-8")), encoding="utf-8")
+    ok(brain, "refresh")
+    assert "[[Shared thing]] - owner" in block(brain / SAM) and "[[Shared thing]] - owner" in block(brain / ANA)
+
+
+def test_an_ambiguous_old_entry_does_not_block_new_recordings(brain):
+    works_on(brain, "Sam Lee", "Onboarding")  # no note yet: kept as plain text
+    for team_project in ("Onboarding web", "Onboarding app"):
+        ok(brain, "new", "project", "--title", team_project, "--set", "owner=[[Ana Lopez]]", "--set", 'aliases=["Onboarding"]')
+    assert works_on(brain, "Sam Lee", "Onboarding revamp", role="lead").returncode == 0
+
+
+def test_brains_with_older_templates_still_work(brain):
+    (brain / "Templates" / "Stakeholder Template.md").unlink()  # set up before the template existed
+    ok(brain, "new", "stakeholder", "--title", "Sam Lee")  # falls back to the engine's copy
+    old = brain / "Templates" / "Person Template.md"
+    old.write_text(old.read_text(encoding="utf-8").split("## What they care about")[0], encoding="utf-8")
+    assert "warning: Templates/Person Template.md lacks the engine's sections" in ok(brain, "person", "upgrade")
+
+
+def test_the_shared_hub_names_nobody_for_having_no_work(brain):
+    ok(brain, "refresh")
+    assert "Sam Lee" not in block(brain / "Company" / "Org" / "Organization.md", "work-map")
+    issues = json.loads(cli(brain, "--json", "check").stdout)
+    assert any(i["path"] == SAM.as_posix() and i["severity"] == "info" and "no current work recorded" in i["message"]
+               for i in issues)
+
+
+def test_upgrade_keeps_the_profile_spacing(brain):
+    legacy = brain / "Company" / "Org" / "People" / "Old Timer.md"
+    legacy.write_text(f"---\ndate: {TODAY}\ntype: person\ntags: [person]\nai-first: true\nlayer: company\n---\n\n"
+                      "# Old Timer\n\n## For future agent\nOld.\n\n## Role and responsibilities\n```\na\n\n\n\nb\n```\n",
+                      encoding="utf-8")
+    ok(brain, "person", "upgrade", "--yes")
+    assert "```\na\n\n\n\nb\n```" in legacy.read_text(encoding="utf-8")

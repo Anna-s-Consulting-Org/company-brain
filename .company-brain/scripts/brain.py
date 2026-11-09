@@ -85,7 +85,7 @@ def _scalar(v: str):
     if v == "":
         return None
     if v[0] == '"' and v.endswith('"') and len(v) >= 2:
-        return v[1:-1].replace('\\"', '"')
+        return re.sub(r'\\(["\\])', r"\1", v[1:-1])
     if v[0] == "'" and v.endswith("'") and len(v) >= 2:
         return v[1:-1].replace("''", "'")
     if v.startswith("[[") and v.endswith("]]"):
@@ -180,7 +180,7 @@ def yaml_value(v) -> str:
     s = str(v)
     if re.fullmatch(r"[A-Za-z0-9_./ -]+", s) and not re.fullmatch(r"(true|false|yes|no|null|-?\d+(\.\d+)?)", s.lower()) and not s.startswith(("-", " ")):
         return s
-    return '"' + s.replace('"', '\\"') + '"'
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 # ---------------------------------------------------------------------------
@@ -512,22 +512,9 @@ def render_template(text: str, title: str, values: dict, day: dt.date = TODAY) -
 
 def set_frontmatter(text: str, values: dict) -> str:
     """Set top-level scalar/flat-list keys in a note's frontmatter, keeping the rest."""
-    m = FM_RE.match(text)
-    if not m:
-        return text
-    lines = m.group(1).split("\n")
     for key, val in values.items():
-        rendered = f"{key}: {yaml_value(val)}"
-        for i, line in enumerate(lines):
-            if re.match(rf"^{re.escape(key)}\s*:", line):
-                j = i + 1
-                while j < len(lines) and (lines[j].startswith((" ", "-")) and not re.match(r"^[A-Za-z_]", lines[j])):
-                    j += 1
-                lines[i:j] = [rendered]
-                break
-        else:
-            lines.append(rendered)
-    return "---\n" + "\n".join(lines) + "\n---\n" + text[m.end():]
+        text = set_frontmatter_lines(text, key, [f"{key}: {yaml_value(val)}"])
+    return text
 
 
 def scaffold_ctx(root: Path, extra: dict | None = None) -> dict:
@@ -1422,6 +1409,7 @@ def create_note(root: Path, kind: str, title: str, layer: str | None = None, tea
         if not values.get("person"):
             prof = resolve_person(scan(root), title)
             values["person"] = f"[[{prof.name}]]" if prof else title
+            title = prof.name if prof else title  # Stakeholder - <Full Name>, even when called by an alias
     folder = layer_root(root, layer, team) / sub
     route = dict(values, layer=layer, team=team)
     stem = name or note_name(kind, title, route, who)
@@ -1431,7 +1419,7 @@ def create_note(root: Path, kind: str, title: str, layer: str | None = None, tea
     existing = [n for n in scan(root) if n.name.lower() == stem.lower()]
     if existing:
         return {"created": False, "path": existing[0].rel, "reason": "a note with this name already exists"}
-    tpl = root / "Templates" / tpl_file
+    tpl = template_file(root, tpl_file)
     if not tpl.is_file():
         raise SystemExit(f"error: template not found: Templates/{tpl_file}")
     prompt_values = {k: v for k, v in values.items() if v is not None}
@@ -1461,6 +1449,12 @@ def create_note(root: Path, kind: str, title: str, layer: str | None = None, tea
     target.write_text(text, encoding="utf-8")
     append_log(root, f"created {target.relative_to(root).as_posix()} ({kind})")
     return {"created": True, "path": target.relative_to(root).as_posix()}
+
+
+def template_file(root: Path, name: str) -> Path:
+    """The brain's own template, else the engine's shipped copy (a brain set up before the template existed)."""
+    own = root / "Templates" / name
+    return own if own.is_file() else SCAFFOLD / "system" / "Templates" / name
 
 
 def append_log(root: Path, line: str) -> None:
@@ -2098,9 +2092,12 @@ WORK_MAP_KEY = "work-map"
 WORKS_ON_EMPTY = ("Nothing recorded yet. This list fills on the next `brain refresh` from the owner field and the "
                   "`## People` table of project notes, objective and key result owners, and work recorded from "
                   "connected systems with `brain person works-on`.")
+# live in Obsidian between refreshes: owners only, matched by link rather than by substring
+LIVE_WORKS_ON = ("Live in Obsidian (owners only; the list above adds contributors and connected systems on `brain refresh`):\n"
+                 "```dataview\nLIST FROM \"Company\" OR \"Teams\"\n"
+                 "WHERE (type = \"project\" OR type = \"objective\") AND contains(flat(list(owner)), this.file.link)\n```")
 # the Dataview block profiles carried before `Works on` became a generated block
 LEGACY_WORKS_ON = re.compile(r"```dataview[ \t]*\n[^`]*?type = \"project\"[^`]*?contains\(string\(owner\), this\.file\.name\)[^`]*?```\n?")
-POINTER_RE = re.compile(r"\b([a-z][a-z0-9]+):([A-Za-z0-9][A-Za-z0-9/_@.-]*[A-Za-z0-9])")
 URL_RE = re.compile(r"https?://\S+")
 
 
@@ -2209,12 +2206,22 @@ def role_from_label(label: str) -> str:
 
 def display_source(s) -> str:
     """A source as prose: URLs stay clickable, ids like linear:ONB-12 go in code spans (they are not claims)."""
+    pointer = _freshness_module().TYPED_POINTER  # what FRESH-3 flags, so the two cannot drift
     s, out, pos = str(s or ""), [], 0
     for m in URL_RE.finditer(s):
-        out += [POINTER_RE.sub(lambda p: f"`{p.group(0)}`", s[pos:m.start()]), m.group(0)]
+        out += [pointer.sub(lambda p: f"`{p.group(0)}`", s[pos:m.start()]), m.group(0)]
         pos = m.end()
-    out.append(POINTER_RE.sub(lambda p: f"`{p.group(0)}`", s[pos:]))
+    out.append(pointer.sub(lambda p: f"`{p.group(0)}`", s[pos:]))
     return "".join(out).strip()
+
+
+def person_refs(v) -> list:
+    """Each person a field names: a list, or a string with one or more [[links]] ('[[A]], [[B]]')."""
+    out = []
+    for item in as_list(v):
+        links = [m.group(2).strip() for m in LINK_RE.finditer(item)] if isinstance(item, str) else []
+        out += links or ([item] if item else [])
+    return out
 
 
 def _date_str(v) -> str:
@@ -2248,9 +2255,9 @@ def work_items(notes, period: dict) -> dict:
             done = status.lower() in DONE_STATUSES
             when = _date_str(n.get("updated") or n.get("date"))
             detail = "project note" + (f", {status}" if done else "") + (f", updated {when}" if when else "")
-            refs = [(n.get("owner"), "owner")]
+            refs = [(r, "owner") for r in person_refs(n.get("owner"))]
             for field, role in (("contributors", "contributor"), ("stakeholders", "stakeholder")):
-                refs += [(r, role) for r in as_list(n.get(field))]
+                refs += [(r, role) for r in person_refs(n.get(field))]
             refs += [(t, role_from_label(label)) for label, targets in people_table(n) for t in targets]
             for ref, role in refs:
                 add(ref, key=n.name.lower(), label=f"[[{n.name}]]", role=role, detail=detail,
@@ -2258,11 +2265,14 @@ def work_items(notes, period: dict) -> dict:
         elif n.type == "objective":
             per = str(n.get("period") or "")
             done = str(n.get("status") or "").lower() in DONE_STATUSES or period_ended(per, period)
-            add(n.get("owner"), key=n.name.lower(), label=f"[[{n.name}]]", role="objective owner",
-                detail=f"objective, {per or 'period TBD'}", current=not done, group=1)
+            for ref in person_refs(n.get("owner")):
+                add(ref, key=n.name.lower(), label=f"[[{n.name}]]", role="objective owner",
+                    detail=f"objective, {per or 'period TBD'}", current=not done, group=1)
             for kr in parse_krs(n):
-                add(kr["fields"].get("owner"), key=f"{n.name.lower()}#{kr['id']}", label=f"[[{n.name}#^{kr['id']}]]",
-                    role="key result owner", detail=f"{kr['id'].upper()}, {per or 'period TBD'}", current=not done, group=1)
+                for ref in person_refs(kr["fields"].get("owner")):
+                    add(ref, key=f"{n.name.lower()}#{kr['id']}", label=f"[[{n.name}#^{kr['id']}]]",
+                        role="key result owner", detail=f"{kr['id'].upper()}, {per or 'period TBD'}",
+                        current=not done, group=1)
 
     projects = {}
     for n in shared_projects(notes):
@@ -2327,11 +2337,9 @@ def render_work_map(notes, model: dict) -> str:
     people = profiles(notes)
     if not people:
         return "No people yet. Add profiles with `/company-brain:org` or `brain person add`."
-    work, idle = {}, []
+    work = {}
     for p in people:
         mine = [i for i in _merged(model.get(p.name.lower(), [])) if i["current"] and i["group"] == 0]
-        if not mine and str(p.get("status") or "").lower() != "left":
-            idle.append(p.name)
         for i in mine:
             w = work.setdefault(i["key"], {"label": i["label"], "no_note": i.get("no_note"), "people": {}})
             w["people"].setdefault(p.name, []).append(i["role"])
@@ -2346,8 +2354,6 @@ def render_work_map(notes, model: dict) -> str:
         lines += ["", "### Seen in connected systems, no project note yet", "",
                   "Create a note with `/company-brain:project` when the work belongs in the brain.", ""]
         lines += [line(w) for w in unnoted]
-    if idle:
-        lines += ["", "No current project work recorded for: " + ", ".join(f"[[{n}]]" for n in idle)]
     return "\n".join(lines)
 
 
@@ -2364,10 +2370,10 @@ def place_works_on(text: str, content: str) -> str:
     span = _section_span(lines, r"Works on")
     if span:
         s, e = span
-        rest = LEGACY_WORKS_ON.sub("", "\n".join(lines[s + 1:e])).strip("\n")
+        rest = LEGACY_WORKS_ON.sub(LIVE_WORKS_ON.replace("\\", "\\\\") + "\n", "\n".join(lines[s + 1:e])).strip("\n")
         new = [lines[s], block] + (["", rest] if rest.strip() else []) + [""]
         return head + "\n".join(lines[:s] + new + lines[e:])
-    sect = ["## Works on", block, ""]
+    sect = ["## Works on", block, "", LIVE_WORKS_ON, ""]
     span = _section_span(lines, r"Reports")
     if span:
         return head + "\n".join(lines[:span[0]] + sect + lines[span[0]:])
@@ -2505,6 +2511,11 @@ def check(root: Path, notes=None) -> list:
                                f"({threshold}): confirm it with the user (then `stated`) or end it")
             if _norm(e.get("role")) not in WORK_ROLES:
                 add("info", p, f"{what} has role {e.get('role')!r}; expected one of {', '.join(WORK_ROLES)}")
+    model = work_items(notes, period)
+    for p in profiles(notes):
+        if str(p.get("status") or "").lower() != "left" and not any(i["current"] for i in model[p.name.lower()]):
+            add("info", p, "no current work recorded: look for it in connected systems with the org skill's "
+                           "works-on rules, or in project notes' `## People` tables")
     for k, names in sorted(owners.items()):
         if len(names) > 1:
             add("warn", None, f"identifier {k!r} is on several profiles ({', '.join(names)}): "
@@ -3569,8 +3580,12 @@ def record_work(root: Path, person: str, project: str, role: str, source: str, c
         if hits and all(h.folder_layer == "personal" for h in hits):
             raise SystemExit(f"error: the source links to a personal note [[{target}]]; a shared profile never "
                              "points at Personal/. Name the shared record instead, or ask the user")
+    proj = resolve_project(notes, project)  # before any write: an ambiguous project creates nothing
+    label = f"[[{proj.name}]]" if proj else plain
+    key = proj.name.lower() if proj else _norm(plain)
+    today = TODAY.isoformat()
     prof = resolve_person(notes, person)
-    created = None
+    created = False
     if not prof:
         if not create:
             raise SystemExit(f"error: no profile matches {person!r} (name, alias, email or handle). Check the "
@@ -3579,26 +3594,35 @@ def record_work(root: Path, person: str, project: str, role: str, source: str, c
         name = link_target(person) if "[[" in person else person.strip()
         if "@" in name or ":" in name:
             raise SystemExit("error: --create needs the person's full name, not an email or handle")
-        created = create_note(root, "person", name, name=name, values={"role": "TBD", "team": "TBD", "manager": "TBD"})
+        res = create_note(root, "person", name, name=name, write=write,
+                          values={"role": "TBD", "team": "TBD", "manager": "TBD"})
+        if res.get("reason"):
+            raise SystemExit(f"error: cannot create a profile for {name!r}: {res['path']} already has that name and "
+                             "is not a profile in Company/Org/People. Fix that note, or use the name the profile has")
+        created = True
+        if not write:
+            return {"recorded": True, "action": "added", "person": name, "path": res["path"], "project": label,
+                    "project_note": bool(proj), "role": role, "confidence": confidence, "profile_created": True,
+                    "dry_run": True}
         notes = scan(root)
         prof = resolve_person(notes, name)
-    proj = resolve_project(notes, project)
-    label = f"[[{proj.name}]]" if proj else plain
-    key = proj.name.lower() if proj else _norm(plain)
-    today = TODAY.isoformat()
     entries = [dict(e) for e in as_list(prof.get("works_on")) if isinstance(e, dict)]
+    names = {}  # project key -> the notes it names; an ambiguous old entry falls back to its own text, never an error
+    for n in shared_projects(notes):
+        for k in project_keys(n):
+            names.setdefault(k, set()).add(n.name.lower())
 
     def entry_key(e):
         n = link_target(e.get("project")) if "[[" in str(e.get("project")) else str(e.get("project") or "")
-        p = resolve_project(notes, n)
-        return p.name.lower() if p else _norm(n)
+        hit = names.get(_norm(n), set())
+        return next(iter(hit)) if len(hit) == 1 else _norm(n)
     open_same = [e for e in entries if entry_key(e) == key and _norm(e.get("until") or "present") in OPEN_UNTIL]
     action = None
     if end:
-        closing = [e for e in open_same if not role or _norm(e.get("role")) == role] or open_same
+        closing = [e for e in open_same if not role or _norm(e.get("role")) == role]
         if not closing:
             return {"recorded": False, "code": 3, "path": prof.rel,
-                    "reason": f"no open works_on entry for {plain} on {prof.name} to end"}
+                    "reason": f"no open {role + ' ' if role else ''}works_on entry for {plain} on {prof.name} to end"}
         for e in closing:
             e["until"], e["checked"] = until or today, today
         role = role or ", ".join(sorted({_norm(e.get("role")) for e in closing}))
@@ -3661,7 +3685,7 @@ def cmd_person_works_on(args):
 def upgrade_profile(root: Path, p: Note) -> tuple:
     """(new text, added) for a profile: template frontmatter keys and sections it lacks, in template order.
     Nothing it already has is touched; `brain refresh` fills the works-on block afterwards."""
-    tpl = (root / "Templates" / KINDS["person"][0]).read_text(encoding="utf-8")
+    tpl = template_file(root, KINDS["person"][0]).read_text(encoding="utf-8")
     rendered = render_template(tpl, p.name, {k: p.get(k) for k in ("role", "team", "manager") if p.get(k)})
     tfm, tbody = split_frontmatter(rendered)
     text = p.text.lstrip("﻿").replace("\r\n", "\n")
@@ -3698,9 +3722,19 @@ def upgrade_profile(root: Path, p: Note) -> tuple:
             if at > 0 and lines[at - 1].strip():
                 block = [""] + block
             lines = lines[:at] + block + [""] + lines[at:]
-        text = head + re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
+        text = head + "\n".join(lines)
         added.append(f"## {title}")
     return text, added
+
+
+def person_template_gaps(root: Path) -> list:
+    """Level-2 sections the engine's person template has and the brain's own copy lacks (an older brain)."""
+    def heads(path):
+        lines = split_frontmatter(path.read_text(encoding="utf-8"))[1].split("\n") if path.is_file() else []
+        return [t for _, lvl, t in _headings(lines) if lvl == 2]
+    own = {h.lower() for h in heads(root / "Templates" / KINDS["person"][0])}
+    shipped = heads(SCAFFOLD / "system" / "Templates" / KINDS["person"][0])
+    return [f"## {h}" for h in shipped if own and h.lower() not in own]
 
 
 def cmd_person_upgrade(args):
@@ -3724,6 +3758,11 @@ def cmd_person_upgrade(args):
             p.path.write_text(new, encoding="utf-8")
             append_log(root, f"upgraded {p.rel}: " + ", ".join(added))
     lines = [f"{'Upgraded' if args.yes else 'Would upgrade'} {len(changes)} of {len(sel)} profile(s)"]
+    stale = person_template_gaps(root)
+    if stale:
+        lines.append(f"warning: Templates/{KINDS['person'][0]} lacks the engine's sections ({', '.join(stale)}), so "
+                     "profiles cannot get them. Copy it from " + str(SCAFFOLD / "system" / "Templates" / KINDS["person"][0])
+                     + " (keep your own changes), then run this again.")
     for c in changes:
         lines.append(f"  {c['path']}: " + ", ".join(c["added"]))
         if not args.yes:
@@ -3732,7 +3771,7 @@ def cmd_person_upgrade(args):
         lines.append("Dry run: nothing was written. Re-run with --yes, then brain refresh.")
     elif changes:
         lines.append("Next: brain refresh (fills the Works on blocks).")
-    emit(args, {"changes": changes, "written": args.yes}, "\n".join(lines))
+    emit(args, {"changes": changes, "written": args.yes, "template_gaps": stale}, "\n".join(lines))
 
 
 def cmd_new(args):
