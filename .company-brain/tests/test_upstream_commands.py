@@ -37,6 +37,31 @@ def test_every_triaged_command_has_a_valid_decision():
             assert len(entry.get("reason", "")) > 20, f"{name}: say why it was {entry['decision']}"
 
 
+# An upstream command in upstream's own shape: front matter with triggers, the standard intro, the
+# personal-vault folders, tools and scripts, and the closing rules the skill sections replace.
+FRESH = """---
+description: Refresh the ideas list from the vault \u2014 quickly
+category: vault
+argument-hint: "[topic]"
+triggers_en: ["refresh ideas", "update my ideas"]
+triggers_zh: ["\u66f4\u65b0"]
+---
+
+Use the obsidian-second-brain skill. Execute `/obsidian-fresh $ARGUMENTS`:
+
+1. Read `_CLAUDE.md` first if it exists in the vault root
+2. Search the ideas folder (resolved per `references/folder-map.md`) with `obsidian_search`, then run `/save`.
+3. Run `uv run --directory "SKILL_ROOT" scripts/checkin.py --path <vault> pick` and `uv run --directory "SKILL_ROOT" scripts/nope.py`.
+4. Ask `/obsidian-unknown` for help, then read `scripts/crew.py` and the agenda folder (resolved per `references/folder-map.md` - wiki-style `wiki/agenda/`).
+
+---
+
+**AI-first rule:** Every note created by this command MUST follow the rules.
+
+**Anti-fabrication:** Search exhaustively.
+"""
+
+
 @pytest.fixture()
 def fake_upstream(tmp_path, monkeypatch):
     """A local upstream with two commits, a brain repo to check from, and an upstream.json pointing at both."""
@@ -52,7 +77,7 @@ def fake_upstream(tmp_path, monkeypatch):
     (up / "commands" / "save.md").write_text("# save\nnew step\n", encoding="utf-8")
     (up / "commands" / "skipped.md").write_text("# skipped\nchanged too\n", encoding="utf-8")
     (up / "commands" / "old.md").unlink()
-    (up / "commands" / "fresh.md").write_text("# fresh\n", encoding="utf-8")
+    (up / "commands" / "fresh.md").write_text(FRESH, encoding="utf-8")
     (up / "scripts" / "tool.py").write_text("print('two')\n", encoding="utf-8")
     git(up, "add", "-A"), git(up, "commit", "-q", "-m", "two")
     root = tmp_path / "brain"
@@ -112,3 +137,37 @@ def test_moved_commands_folder_is_reported_not_fatal(fake_upstream):
     assert res["commands"]["missing_dir"] and [f["local"] for f in res["changed"]] == ["tool.py"]
     with pytest.raises(SystemExit, match="no skills/ folder"):
         brain_cli.upstream_check(root, mark=True)
+
+
+def test_draft_does_the_mechanical_part_and_marks_the_rest(fake_upstream, tmp_path):
+    root, conf, _ = fake_upstream
+    data = json.loads(conf.read_text(encoding="utf-8"))
+    ref = brain_cli.fetch_upstream(root, data)
+    skills = tmp_path / "skills"
+    res = brain_cli.draft_skill(root, data, ref, "fresh", skills_dir=skills)
+    text = (skills / "fresh" / "SKILL.md").read_text(encoding="utf-8")
+    assert res["skill"] == "fresh" and text.isascii()
+    assert text.startswith('---\nname: fresh\ndescription: Refresh the ideas list from the brain - quickly. '
+                           'Use for "refresh ideas", "update my ideas".\nargument-hint: "[topic]"\n---\n')
+    # the standard sections come from the existing skills; upstream's intro and closing rules are gone
+    assert "## Before you start" in text and "## Always" in text and "## Adaptation checklist" in text
+    assert "Use the obsidian-second-brain skill" not in text and "**AI-first rule:**" not in text
+    assert "_CLAUDE.md" not in text and "Read `CLAUDE.md` first" not in text
+    # mapped: folders, search, adapted commands, vendored scripts
+    assert "the `Personal/Notes/` folder" in text and "`brain search`" in text and "/company-brain:save" in text
+    assert 'python3 "<engine>/scripts/checkin.py" --path <brain> pick' in text
+    # a path is not a command, and what cannot be mapped is marked, not guessed
+    assert "`scripts/crew.py`" in text
+    for todo in ("scripts/nope.py is not vendored here", "/obsidian-unknown has no skill here",
+                 "no 'agenda' folder here"):
+        assert f"{brain_cli.DRAFT_MARKER}: {todo}" in text, todo
+    assert res["todos"] == text.count(brain_cli.DRAFT_MARKER) >= 7
+    with pytest.raises(SystemExit, match="exists; pass --as"):
+        brain_cli.draft_skill(root, data, ref, "fresh", skills_dir=skills)
+    assert brain_cli.draft_skill(root, data, ref, "fresh", "fresh-ideas", skills_dir=skills)["skill"] == "fresh-ideas"
+
+
+def test_no_skill_ships_with_draft_markers():
+    left = [p.parent.name for p in sorted((ENGINE / "skills").glob("*/SKILL.md"))
+            if brain_cli.DRAFT_MARKER in p.read_text(encoding="utf-8")]
+    assert not left, f"finish these drafts with references/upstream-sync.md: {left}"

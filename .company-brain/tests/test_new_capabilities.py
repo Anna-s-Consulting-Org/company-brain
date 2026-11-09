@@ -153,6 +153,7 @@ def test_scaffold_carries_only_the_generated_commands(brain):
     (brain / ".claude" / "commands" / "deploy-internal.md").write_text("Our deploy.\n", encoding="utf-8")
     sources = brain_cli.scaffold_system_sources(brain)
     assert ".claude/commands/deploy-internal.md" not in sources
+    assert ".claude/commands/upstream-sync.md" not in sources  # the maintainer command stays in this repo
     assert ".claude/commands/company-brain/daily.md" in sources
 
 

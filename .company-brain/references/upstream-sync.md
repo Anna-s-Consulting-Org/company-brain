@@ -1,6 +1,6 @@
 # Upstream sync: bringing obsidian-second-brain changes into Company Brain
 
-How to take what obsidian-second-brain (upstream) adds or changes and fit it to this repository. Upstream is a personal vault, and Company Brain is a company brain with three layers. A file copied as-is works only for the few scripts and rules that know nothing about layers. Everything else is adapted: it is rewritten to follow this repository's rules. This playbook is for whoever maintains the engine (a person, or an agent asked to "sync with upstream"). Operating the brain does not need it.
+How to take what obsidian-second-brain (upstream) adds or changes and fit it to this repository. Upstream is a personal vault, and Company Brain is a company brain with three layers. A file copied as-is works only for the few scripts and rules that know nothing about layers. Everything else is adapted: it is rewritten to follow this repository's rules. This playbook is for whoever maintains the engine (a person, or an agent asked to "sync with upstream"). Operating the brain does not need it. In Claude Code in the Company Brain repository, `/upstream-sync` runs this loop and stops for your yes at each decision (it is a maintainer command in `.claude/commands/`, not shipped to new brains).
 
 ## What is tracked
 
@@ -36,10 +36,12 @@ Ask in this order and record the first answer that fits:
 
 ## Adapting a command into a skill
 
-Write `.company-brain/skills/<name>/SKILL.md`:
+Start from a draft: `./brain upstream-check --draft <command>` (add `--as <name>` when the default name, the command without its `obsidian-` prefix, is taken). It writes `.company-brain/skills/<name>/SKILL.md` with the front matter (description, `Use for` from upstream's English triggers, `argument-hint`), the standard sections, an adaptation checklist, and upstream's steps with the mechanical swaps done: upstream folders and references mapped to this brain's, `obsidian_search` to `brain search`, upstream commands to the skills they became, vendored scripts to `python3 "<engine>/scripts/..."`, ASCII punctuation. Whatever it cannot map (a folder this brain does not have, a script that is not vendored, a command with no skill) it marks `TODO(upstream-sync)` on that line. It never decides layers or approvals: that is the part you finish. A test fails while any skill still holds a marker.
+
+The finished skill:
 
 - **Front matter**: `name: <name>`, a `description` that says what it does and ends with `Use for "...", "..."` trigger phrases, and `argument-hint: "..."` when it takes arguments. Quote the hint.
-- **Body**: a short purpose paragraph, then the same `## Before you start` and `## Always` sections every other skill has (copy them from an existing skill unchanged), with the steps in `## Steps` between them.
+- **Body**: a short purpose paragraph, then the same `## Before you start` and `## Always` sections every other skill has (the draft copies them from an existing skill), with the steps in `## Steps` between them. Delete the draft's first paragraph and its adaptation checklist once every item is done.
 - **Rewrite for this brain**, never copy upstream paths or tools:
 
   | Upstream | Here |

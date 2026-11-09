@@ -887,9 +887,8 @@ def triage_blockers(triage) -> list:
     return [f"new: {n}" for n in triage["new"]] + [f"removed upstream: {n}" for n in triage["removed"]]
 
 
-def upstream_check(root: Path, diff: bool = False, copy: bool = False, mark: bool = False) -> dict:
-    """Which files Company Brain borrowed from obsidian-second-brain changed upstream since the recorded commit."""
-    conf = json.loads(UPSTREAM_CONF.read_text(encoding="utf-8"))
+def fetch_upstream(root: Path, conf: dict) -> str:
+    """Fetch upstream into the `upstream` remote (push disabled) and return the branch ref."""
     top = _git(root, "rev-parse", "--show-toplevel", check=False).strip()
     if not top or Path(top).resolve() != root.resolve():
         raise SystemExit(f"error: {root} is not the root of a git repository; upstream-check compares git history")
@@ -897,7 +896,168 @@ def upstream_check(root: Path, diff: bool = False, copy: bool = False, mark: boo
         _git(root, "remote", "add", "upstream", conf["repo"])
         _git(root, "remote", "set-url", "--push", "upstream", "DISABLED")
     _git(root, "fetch", "--quiet", "upstream", conf["branch"])
-    ref = f"upstream/{conf['branch']}"
+    return f"upstream/{conf['branch']}"
+
+
+# --- draft a skill from an upstream command (upstream-check --draft) --------------------------------
+# The draft does the mechanical part of adapting (front matter, the standard sections, upstream paths
+# and tools swapped for this brain's) and marks every decision it cannot make with DRAFT_MARKER. An
+# agent or a person finishes it with references/upstream-sync.md; a test fails while a marker is left.
+DRAFT_MARKER = "TODO(upstream-sync)"
+DRAFT_FOLDERS = {
+    "daily": "`Personal/Daily/`", "weekly": "`Personal/Weekly/`", "meetings": "`<L>/Meetings/`",
+    "projects": "`<L>/Projects/`", "decisions": "`<L>/Decisions/`", "ideas": "`Personal/Notes/`",
+    "concepts": "`Personal/Notes/`", "entities": "`Company/Org/People/`", "people": "`Company/Org/People/`",
+    "boards": "board (`Personal/My Board.md`, or `Teams/<Team>/<Team> Board.md` after asking)",
+    "tasks": "board (`Personal/My Board.md`, or `Teams/<Team>/<Team> Board.md` after asking)",
+}
+# upstream reference files that have a counterpart here under another name
+DRAFT_REFERENCES = {"write-rules.md": "propagation.md", "folder-map.md": "schemas.md"}
+DRAFT_ASCII = {"\u2014": " - ", "\u2013": "-", "\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'",
+               "\u2192": "->", "\u2190": "<-", "\u2026": "...", "\u00d7": "x", "\u00a7": "section "}
+
+
+def _upstream_front_matter(text: str) -> tuple:
+    """(front matter dict, body) of an upstream command file; lists like triggers_en are parsed as JSON."""
+    m = FM_RE.match(text)
+    meta = {}
+    for line in (m.group(1) if m else "").splitlines():
+        key, sep, value = line.partition(":")
+        if not sep or line[:1].isspace():
+            continue
+        value = value.strip()
+        try:
+            meta[key.strip()] = json.loads(value) if value[:1] in '["' else value
+        except ValueError:
+            meta[key.strip()] = value.strip('"')
+    return meta, text[m.end():] if m else text
+
+
+def _draft_line(line: str, cmd_map: dict) -> str:
+    todo = []
+    line = re.sub(r"`?_CLAUDE\.md`?", "`CLAUDE.md`", line)
+    line = re.sub(r"\bobsidian-second-brain skill\b", "Company Brain", line)
+    line = line.replace("SKILL_ROOT", "<engine>")
+
+    def folder(m):
+        kind = m.group(1).lower()
+        if kind in DRAFT_FOLDERS:
+            return f"the {DRAFT_FOLDERS[kind]}" + (" folder" if DRAFT_FOLDERS[kind].endswith("/`") else "")
+        todo.append(f"no '{kind}' folder here: pick one from references/schemas.md")
+        return f"the {kind} folder"
+    # "the X folder (resolved per `references/folder-map.md` ...)", with or without the wiki/Obsidian aside
+    line = re.sub(r"the (\w+) folder,? \(?resolved per `references/folder-map\.md`[^)\n]*\)?", folder, line)
+    if "folder-map" in line:
+        todo.append("folder lookup: use the folders in references/schemas.md")
+
+    def reference(m):
+        name = m.group(1)
+        name = DRAFT_REFERENCES.get(name, name)
+        if not (ENGINE / "references" / name).is_file():
+            todo.append(f"references/{m.group(1)} has no counterpart here")
+            return m.group(0)
+        return f"references/{name}"
+    line = re.sub(r"references/([\w.-]+\.md)", reference, line)
+    if "Skill root" in line:
+        todo.append("upstream's Skill root: the engine path is on the Company Brain line of the session context")
+    line = re.sub(r"\s*\((?:wiki-style|Obsidian-style)[^)]*\)", "", line)
+    for old, new in (("`Ideas/`", "`Personal/Notes/`"), ("`Daily/`", "`Personal/Daily/`"),
+                     ("`wiki/daily/`", "`Personal/Daily/`")):
+        line = line.replace(old, new)
+    line = line.replace("`obsidian_search`", "`brain search` (or the brain MCP server's `brain_search`)")
+    if re.search(r"obsidian_\w+", line):
+        todo.append("an upstream MCP tool: use the brain CLI, file tools, or a brain_* MCP tool")
+
+    def command(m):
+        name = m.group(1)
+        entry = cmd_map.get(name, {})
+        if entry.get("decision") in TRACKED_DECISIONS:
+            return f"/company-brain:{entry['skill']}"
+        if name in cmd_map or name.startswith("obsidian-"):
+            todo.append(f"/{name} has no skill here")
+        return m.group(0)
+    # a slash command, not a path segment: nothing path-like before the slash or after the name
+    line = re.sub(r"(?<![\w./-])/((?:obsidian-)?[a-z][a-z-]*[a-z])(?![\w/-]|\.\w)", command, line)
+
+    def script(m):
+        name = m.group(1)
+        if (ENGINE / "scripts" / name).is_file():
+            return f'python3 "<engine>/scripts/{name}"'
+        todo.append(f"scripts/{name} is not vendored here")
+        return m.group(0)
+    line = re.sub(r'uv run --directory "<engine>" scripts/(\w+\.py)', script, line)
+    if "uv run" in line:
+        todo.append("uv run: use python3 with a vendored script, or drop the step")
+    line = re.sub(r"\bthe vault\b", "the brain", line)
+    line = re.sub(r"\bvault\b", "brain", line)
+    for old, new in DRAFT_ASCII.items():
+        line = line.replace(old, new)
+    return line + "".join(f" {DRAFT_MARKER}: {x}." for x in dict.fromkeys(todo))
+
+
+def draft_skill(root: Path, conf: dict, ref: str, command: str, skill: str | None = None,
+                skills_dir: Path | None = None) -> dict:
+    """Write a first-draft SKILL.md adapted from upstream commands/<command>.md."""
+    cmds = conf.get("commands") or {}
+    folder = cmds.get("dir", "commands").strip("/")
+    command = command.strip().lstrip("/")
+    skill = skill or re.sub(r"^obsidian-", "", command)
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", skill):
+        raise SystemExit(f"error: skill name {skill!r}: use lowercase letters, digits and hyphens")
+    skills_dir = skills_dir or ENGINE / "skills"
+    target = skills_dir / skill / "SKILL.md"
+    if target.exists():
+        raise SystemExit(f"error: {target} exists; pass --as <another-name>, or port the change into that skill by hand")
+    raw = _git(root, "show", f"{ref}:{folder}/{command}.md", check=False)
+    if not raw:
+        raise SystemExit(f"error: upstream has no {folder}/{command}.md at {ref}")
+    meta, body = _upstream_front_matter(raw)
+    # upstream wraps every command in the same intro and closing rules; the skill sections replace both
+    body = re.sub(r"(?m)^Use the obsidian-second-brain skill\. Execute .*\n+", "", body)
+    body = re.split(r"\n---\n+\*\*AI-first rule:\*\*", body)[0]
+    body = re.sub(r"(?ms)^\*\*(?:AI-first rule|Anti-fabrication):\*\*.*?(?:\n\n|\Z)", "", body)
+    body = re.sub(r"(?m)^\s*\d+[a-z]?\.\s+Read `?_CLAUDE\.md`? first.*\n", "", body)
+    steps = "\n".join(_draft_line(l, cmds.get("map", {})) for l in body.strip().splitlines())
+    desc = " ".join(_draft_line(str(meta.get("description", "")), cmds.get("map", {})).split()).rstrip(".")
+    desc = re.sub(rf"\s*{re.escape(DRAFT_MARKER)}.*", "", desc) or "TBD"
+    triggers = [x for x in meta.get("triggers_en", []) if isinstance(x, str)]
+    desc += "." + (" Use for " + ", ".join(f'"{x}"' for x in triggers) + "." if triggers else "")
+    desc_line = json.dumps(desc) if ": " in desc or desc[:1] in "\"'[{>|*&!%@`#" else desc
+    shared = (ENGINE / "skills" / "daily" / "SKILL.md").read_text(encoding="utf-8")
+    before = shared[shared.index("## Before you start"):shared.index("## Steps")]
+    always = shared[shared.index("## Always"):]
+    hint = meta.get("argument-hint")
+    title = skill.replace("-", " ").capitalize()
+    head = _git(root, "rev-parse", "--short", ref).strip()
+    text = (
+        f"---\nname: {skill}\ndescription: {desc_line}\n"
+        + (f"argument-hint: {json.dumps(hint)}\n" if hint else "")
+        + f"---\n\n# {title}\n\n"
+        f"{DRAFT_MARKER}: first draft written by `./brain upstream-check --draft {command}` from upstream "
+        f"`{folder}/{command}.md` at {head}. Finish it with `.company-brain/references/upstream-sync.md`, resolve "
+        f"every {DRAFT_MARKER} marker, then replace this paragraph with what the skill does here.\n\n"
+        + before
+        + "## Adaptation checklist\n"
+        f"- [ ] {DRAFT_MARKER}: for every note this skill writes, name the layer (personal by default) and where a "
+        "shared write needs the user's yes (`references/layers.md`).\n"
+        f"- [ ] {DRAFT_MARKER}: check each step against this brain's folders, note types and CLI "
+        "(`references/schemas.md`, `brain new`, `brain period`, `brain search`) and its propagation rules "
+        "(`references/propagation.md`).\n"
+        f"- [ ] {DRAFT_MARKER}: ASCII punctuation only, no hard-coded dates or years.\n"
+        f"- [ ] {DRAFT_MARKER}: wire it in (CLAUDE.md section 4, System/Skills.md, the README count, `./brain commands`, "
+        "`upstream.json` commands.map as adapted), then delete this checklist.\n\n"
+        "## Steps\n" + steps + "\n\n" + always
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    return {"command": command, "skill": skill, "path": str(target), "upstream": f"{folder}/{command}.md",
+            "commit": head, "todos": text.count(DRAFT_MARKER)}
+
+
+def upstream_check(root: Path, diff: bool = False, copy: bool = False, mark: bool = False) -> dict:
+    """Which files Company Brain borrowed from obsidian-second-brain changed upstream since the recorded commit."""
+    conf = json.loads(UPSTREAM_CONF.read_text(encoding="utf-8"))
+    ref = fetch_upstream(root, conf)
     base, head = conf["commit"], _git(root, "rev-parse", ref).strip()
     changed = []
     for f in conf["files"]:
@@ -2159,6 +2319,14 @@ def cmd_upstream_check(args):
         if problems:
             sys.exit(1)
         return
+    if args.draft:
+        conf = json.loads(UPSTREAM_CONF.read_text(encoding="utf-8"))
+        res = draft_skill(root, conf, fetch_upstream(root, conf), args.draft, args.draft_as)
+        rel = Path(res["path"]).resolve().relative_to(root.resolve()).as_posix()
+        emit(args, res, f"Drafted {rel} from upstream {res['upstream']} at {res['commit']}, with {res['todos']} "
+                        f"{DRAFT_MARKER} markers to resolve.\nNext: finish it with "
+                        ".company-brain/references/upstream-sync.md, then ./brain commands and the checks there.")
+        return
     res = upstream_check(root, diff=args.diff, copy=args.copy, mark=args.mark)
     base, head = res["base"][:7], res["head"][:7]
     text = f"Upstream {res['repo']} is at {head}, {res['commits']} commits after the recorded {base}"
@@ -2508,6 +2676,9 @@ def main(argv=None):
     p.add_argument("--diff", action="store_true", help="print the upstream changes to those files")
     p.add_argument("--copy", action="store_true", help="overwrite the unchanged-copy files with the upstream version")
     p.add_argument("--mark", action="store_true", help="record the current upstream commit as synced")
+    p.add_argument("--draft", metavar="COMMAND",
+                   help="write a first-draft skill from an upstream command (e.g. obsidian-merge), to finish by hand")
+    p.add_argument("--as", dest="draft_as", metavar="SKILL", help="with --draft: the skill's name here")
     p.add_argument("--verify", action="store_true",
                    help="offline: fail if a vendored copy file was edited (checks sha256 in upstream.json)")
     p.set_defaults(fn=cmd_upstream_check)

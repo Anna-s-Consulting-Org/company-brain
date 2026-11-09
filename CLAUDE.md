@@ -87,7 +87,7 @@ Filenames are globally unique on purpose (Obsidian resolves links by filename). 
 | `export-pack` | read-only Claude Project pack |
 | `search "<query>" [--limit N] [--lexical]` | search the brain without an agent (JSON), for scripts and cron |
 | `freshness [--strict]` | freshness lint: undated claims about fast-changing facts, aged `as of` stamps, unmapped pointers. Also part of `check` |
-| `upstream-check [--verify]` | what changed upstream in the files and commands borrowed from obsidian-second-brain, and new upstream commands not triaged yet; `--verify` fails if a vendored copy was edited |
+| `upstream-check [--verify] [--draft C]` | what changed upstream in the files and commands borrowed from obsidian-second-brain, and new upstream commands not triaged yet; `--verify` fails if a vendored copy was edited; `--draft` writes a first-draft skill from an upstream command |
 | `commands [--check]` | regenerate the `/company-brain:<name>` project commands from the skills |
 | `context --level N` | company context as JSON |
 
