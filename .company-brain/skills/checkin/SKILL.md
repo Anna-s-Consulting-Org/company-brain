@@ -16,7 +16,7 @@ A fact check compares notes with other notes. News that never reached the brain 
 ## Which notes
 - Only notes **I own** (`owner:` is me), plus my own person profile and notes of the team I lead. Never ask me about, or answer for, a note another person owns; that is their check-in.
 - Types: `checkin pick --types person,project,team --max-open 20`. The helper does not report the owner, so read each candidate and keep at most 3 that are mine. `--max-open 20` only widens the pool you filter; never open more than 3 cards.
-- Facts to ask about are **work facts**: status, owner, scope, dates, role, team, manager. Never ask for or record health, compensation, performance or personal-life facts in a shared note (`CLAUDE.md` section 7).
+- Facts to ask about are **work facts**: status, owner, scope, dates, role, team, manager, and the work a profile lists under Works on. Never ask for or record health, compensation, performance or personal-life facts in a shared note (`CLAUDE.md` section 7).
 - `checkin: never` in a note's frontmatter keeps it out for good. `checkin: priority` moves it to the front.
 
 ## Mode: ask (once a day)

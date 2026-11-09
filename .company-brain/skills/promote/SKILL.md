@@ -22,7 +22,7 @@ The only path from Personal/ to a shared layer. Spec: `references/layers.md` (Pr
    - rewrites every link to a Personal/ note as plain text (keeps the words, drops the brackets);
    - removes personal-only fields (`energy`, `mood`, `promoted_to`, the `private` tag), sets `layer:` and `team:`, keeps `date`;
    - turns a personal weekly into a team update built from its `## Team update` draft only;
-   - refuses `me`, daily, 1:1, and personal-goal notes, and names that already exist in a shared layer.
+   - refuses `me`, daily, 1:1, stakeholder, and personal-goal notes, and names that already exist in a shared layer. For a stakeholder note, offer instead to add what the person stated in a shared setting to their shared profile (the `org` skill).
 4. **Review the dry run yourself** for anything the user would consider private that is not under `## Private` (candid remarks, names, quotes from private messages). Propose edits to the personal note, or `--name`, and re-run the dry run.
 5. **Show the user the diff** and wait for an explicit yes.
 6. **Write**: re-run the same command with `--yes`. It writes the shared note, adds `promoted_to: "[[<shared note>]]"` to the source (an upward link, allowed), and runs the layer check on the result; fix anything it reports.

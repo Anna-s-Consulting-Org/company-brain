@@ -18,7 +18,7 @@ The brain should never hold two notes that disagree without knowing they disagre
 ## Steps
 1. **Find candidates**, in parallel with subagents when available (otherwise one pass each). Return every contradiction as two claims, one per side. Each claim has the note's brain-relative `path`, the `line` number, and a `quote`: one line copied character for character from that note, at least 12 characters long. A contradiction without both quotes is not a finding. Pass this format to every subagent.
    - **Claims**: strategy, VPC, BMC, knowledge, project and OKR notes (`<L>/Strategy/`, `Knowledge/`, `Projects/`, `OKRs/`) making factual claims that conflict.
-   - **People and teams**: roles, managers, teams or ownership in `Company/Org/` and team charters that newer notes or meetings overturn (check the bi-temporal `timeline:` before calling it a conflict).
+   - **People and teams**: roles, managers, teams or ownership in `Company/Org/` and team charters that newer notes or meetings overturn (check the bi-temporal `timeline:` and `works_on:` entries before calling it a conflict). A profile's `works_on:` that disagrees with a project note's owner or `## People` table is a finding; resolve it by ending the wrong entry (`brain person works-on ... --ended`) or fixing the project note, never by deleting history.
    - **Decisions**: records in `<L>/Decisions/` and project decision logs that were reversed or superseded but never updated (`supersedes:` is missing).
    - **Source freshness**: knowledge notes with a `source_path` whose source file changed since the note's `ingested:` date, or newer sources on the same topic.
 2. **Prove each contradiction.** Send both claims to the checker:

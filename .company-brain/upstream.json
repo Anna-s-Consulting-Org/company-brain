@@ -184,6 +184,12 @@
       "local": ".company-brain/scripts/brain.py",
       "mode": "adapt",
       "commit": "58ca891156088635b4c28615d71a7842a8ca3143"
+    },
+    {
+      "upstream": "scripts/bootstrap_vault.py",
+      "local": "Templates/Person Template.md",
+      "mode": "adapt",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143"
     }
   ],
   "commands": {

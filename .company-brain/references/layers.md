@@ -8,7 +8,7 @@ The canonical spec for how Company Brain separates personal, team, and company k
 |---|---|---|---|---|
 | company | `Company/` | everyone in the company | the shared folder, never git | mission, vision, values, strategy, company OKRs, plans, discovery, roadmap, org chart, people profiles, company projects, all-hands and leadership meetings, company decisions |
 | team | `Teams/<Team>/` | everyone (owned and edited by the team) | the shared folder, never git | team charter, team OKRs, team projects, team meetings, team weekly updates and roll-ups, team discovery, team board and roadmap |
-| personal | `Personal/` | nobody (local only) | nothing, this machine only | identity (`Me.md`), daily notes, personal weekly notes, 1:1s, private goals, personal board, inbox, drafts |
+| personal | `Personal/` | nobody (local only) | nothing, this machine only | identity (`Me.md`), daily notes, personal weekly notes, 1:1s, stakeholder notes, private goals, personal board, inbox, drafts |
 
 Two more folders sit beside the layers and are not layers:
 
@@ -66,6 +66,12 @@ Moving knowledge up the stack is always a deliberate, user-approved step:
 
 Nothing is ever promoted automatically by a hook, scheduled job, or background agent.
 
+## Connector data and people
+
+Data from connectors lands in personal notes and reaches a shared note only as content the user approved. One narrow exception: who works on which project. When a company-visible record (a project tracker, a code host, a shared doc, a shared channel or meeting) shows that a colleague leads, owns, or contributes to a project, `brain person works-on` records it on their shared profile. The command needs a source, refuses anything below `people.works_on_min_confidence` in `brain.yaml` (default `high`), and refuses a source that links to a Personal note. Evidence that exists only in a DM, an email, a private channel, a private calendar event, or a 1:1 never reaches a profile without the user's yes. With `sharing: git` the change still waits for the user's commit or pull request.
+
+A profile shows the person as the company sees them. My view of a person (relationship, influence, interest, how we can help each other, open asks, candid notes) lives in `Personal/Stakeholders/Stakeholder - <Full Name>.md`. A profile's `## My notes on them` is a Dataview query over the reader's own Personal/ folder, so each reader sees only their own notes and the shared file links nowhere private.
+
 ## Conflict-free multiplayer writes
 
 When several people write to the same shared area, structure the files so that two people never edit one file at the same time (a shared folder keeps both versions as separate copies instead of merging them):
@@ -112,6 +118,8 @@ Older brains used a `git` model that committed `Company/` and `Teams/`. It is re
 | Activity | Layer by default | Override |
 |---|---|---|
 | Daily note, personal weekly, 1:1, private goal, inbox capture | personal | never shared directly; promote instead |
+| Stakeholder note (my view of a person: relationship, influence, interest, open asks) | personal | never shared, never promoted |
+| Who works on which project, from a company-visible record in a connected system | company (the person's profile, `works_on:`) | below the confidence threshold: nothing is written; the user confirms first |
 | Weekly team update | team (own file) | none |
 | Team roll-up, team OKRs, team meeting, team project, team board | team | company when the user says it is company-wide |
 | Mission, vision, values, strategy, VPC, BMC, company OKRs, annual and quarterly plans, roadmap, org chart, people profiles, all-hands, leadership meetings | company | team when the user scopes it to one team |

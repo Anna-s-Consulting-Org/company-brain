@@ -18,8 +18,9 @@ The daily note is personal (`Personal/Daily/<YYYY-MM-DD>.md`) and never shared.
 2. **Calendar**: if a calendar connector is available (for example Google Calendar `list_events` for today in the user's timezone), list each event as `HH:MM Title - attendees`. Link attendees who have a profile in `Company/Org/People/`; leave others as plain names. No connector: skip silently.
 3. **Focus**: collect cards due today or overdue (`@{date}`) from `Personal/My Board.md` and cards assigned to me on my team board, plus yesterday's `## Tomorrow` items. Propose a top three, each linked to the KR it moves (`[[<objective>#^krN]]`) from the objectives I own or my team owns this quarter. Ask before dropping a carried-over item.
 4. **Captures**: add decisions, people, and tasks from the current conversation under `## Notes and captures`. New tasks go to `Personal/My Board.md` (Inbox column) as cards.
-5. **Prep links**: for each meeting today that has an existing note or a 1:1 file (`Personal/1-1s/1-1 - <Person>.md`), link it.
-6. Return the path, the top three, and anything overdue.
+5. **Prep links**: for each meeting today that has an existing note or a 1:1 file (`Personal/1-1s/1-1 - <Person>.md`), link it, and link each attendee's stakeholder note (`Personal/Stakeholders/Stakeholder - <Person>.md`) when one exists.
+6. **Stakeholder follow-ups**: list stakeholder notes whose `follow_up:` is today or earlier, with the open asks, under `## Notes and captures`. Ask before moving a follow-up date.
+7. Return the path, the top three, follow-ups due, and anything overdue.
 
 Do not write to Company/ or Teams/ in this skill, except moving my own cards on my team board when the user asks.
 

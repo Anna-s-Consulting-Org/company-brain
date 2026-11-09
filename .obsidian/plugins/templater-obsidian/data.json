@@ -22,6 +22,10 @@
       "template": "Templates/One-on-One Template.md"
     },
     {
+      "folder": "Personal/Stakeholders",
+      "template": "Templates/Stakeholder Template.md"
+    },
+    {
       "folder": "Personal/Goals",
       "template": "Templates/Objective Template.md"
     },

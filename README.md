@@ -19,7 +19,7 @@ It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian
 | Discovery | `*/Discovery/` | opportunity solution trees (outcome, opportunity, solution, experiment) rendered as Mermaid and as Obsidian canvases |
 | Prioritization | `Company Prioritization`, `<Team> Prioritization` | generated effort-impact matrix and RICE ranking |
 | Roadmap | `Company Roadmap`, `<Team> Roadmap` | Now / Next / Later kanban boards tied to key results |
-| Organization | `Company/Org/`, `Teams/` | people profiles with bi-temporal history, team charters, generated org chart |
+| Organization | `Company/Org/`, `Teams/`, `Personal/Stakeholders/` | people profiles with bi-temporal history, what each person cares about and how to work with them, who works on what (from project notes and from connected systems such as Linear, Jira and GitHub when the match is confident), personal stakeholder notes and map, team charters, generated org chart |
 | Projects, meetings, decisions | `*/Projects/`, `*/Meetings/`, `*/Decisions/` | in the layer they belong to |
 | Weekly operating rhythm | `Personal/Daily/`, `Personal/Weekly/`, `Teams/<T>/Weekly/` | daily and weekly notes that pull from calendar, Slack, email, Jira, Drive and meeting notes; per-person team updates; team roll-ups |
 | Index and graph | `Home.md`, hubs, `index.md` | every note links to what it serves, so the Obsidian graph reads as one network, colour-coded by layer |
