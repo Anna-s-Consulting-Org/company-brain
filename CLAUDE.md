@@ -99,7 +99,7 @@ Kinds for `new`: objective, annual-plan, quarterly-plan, strategy, playing-to-wi
 
 ## 4. Skills
 
-Run as `/company-brain:<name>` or by asking in plain words. The plugin provides them; without it (and in cloud sessions, which do not load plugins) the same names come from `.claude/commands/company-brain/`, thin pointers to each `SKILL.md` that `./brain commands` generates. Never edit those by hand: edit the skill and rerun it. Catalog with outputs: `System/Skills.md`.
+Run as `/company-brain:<name>` or by asking in plain words. The plugin provides them; without it (for example in a claude.ai cloud session, which loads account and organization plugins but not one installed on a machine or enabled by this repository) the same names come from `.claude/commands/company-brain/`, thin pointers to each `SKILL.md` that `./brain commands` generates. Never edit those by hand: edit the skill and rerun it. Catalog with outputs: `System/Skills.md`.
 
 setup, context, daily, weekly, team-weekly, okr, plan, strategy, vpc, ost, prioritize, roadmap, org, project, meeting, decide, board, promote, connect, ingest, health, export, checkin, reconcile, crew, save, capture, find, recap, challenge, task.
 

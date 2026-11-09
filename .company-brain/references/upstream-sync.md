@@ -21,8 +21,8 @@ How to take what obsidian-second-brain (upstream) adds or changes and fit it to 
 3. **Port adapted files** by hand: read the diff, apply what fits, keep what is ours (layers, `brain.yaml` lookup, the CLI).
 4. **Triage new commands** (below) and record each decision in `commands.map`.
 5. **Follow changed commands**: for each adapted or covered command that changed, read the diff and port what improves its skill. Write nothing that breaks a rule below.
-6. **Removed upstream**: delete the entry from `commands.map`. The skill here stays; it is ours.
-7. **Record the sync**: `./brain upstream-check --mark`. It refuses while a command is untriaged or a removed one is still listed.
+6. **Removed upstream**: delete the entry from `commands.map`. The skill here stays; it is ours. If upstream moved its commands to another folder, `upstream-check` says the folder is missing: set `commands.dir` to the new folder, then triage as usual.
+7. **Record the sync**: `./brain upstream-check --mark`. It refuses, before copying or writing anything, while a command is untriaged, a removed one is still listed, or the commands folder cannot be found.
 8. **Finish**: run the checks below, list the changed files, and suggest a commit. Never push or open a pull request without being asked.
 
 ## Triage: does a new command belong here?
@@ -58,7 +58,7 @@ Write `.company-brain/skills/<name>/SKILL.md`:
 Then wire it in:
 
 1. Add the name to the list in `CLAUDE.md` section 4 and a row to the catalog in `System/Skills.md`; update the skill count in `README.md`.
-2. `./brain commands` writes its `/company-brain:<name>` project command; `./brain scaffold-sync` copies the changed shared files into the scaffold.
+2. `./brain commands` writes its `/company-brain:<name>` project command; `./brain scaffold-sync` copies the changed shared files into the scaffold. Front matter values must each sit on one line (plain, single-quoted or double-quoted); `./brain commands` stops on anything else.
 3. Record the decision in `upstream.json` `commands.map` as `adapted` with `skill`.
 4. If the skill names a script, the script must exist in `.company-brain/scripts/` (a test checks).
 

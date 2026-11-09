@@ -29,7 +29,7 @@ It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian
 | Surface | Read | Write | Notes |
 |---|---|---|---|
 | Claude Code (CLI, desktop app, Cowork) with the `company-brain` plugin | yes | yes | 31 skills: `/company-brain:weekly`, `:okr`, `:ost`, `:checkin`, `:reconcile`, `:prioritize`, `:roadmap`, `:meeting`, `:save`, `:find`, and more |
-| Claude Code opened in this folder without the plugin, including cloud sessions | yes | yes | the same `/company-brain:<name>` commands from `.claude/commands/company-brain/`; the session-start context and the after-write checks (AI-first, layer leaks, freshness) need the plugin, and only the guard on vendored files runs without it |
+| Claude Code opened in this folder without the plugin (for example a claude.ai cloud session where company-brain is not an account or organization plugin) | yes | yes | the same `/company-brain:<name>` commands from `.claude/commands/company-brain/`; the session-start context and the after-write checks (AI-first, layer leaks, freshness) need the plugin, and only the guard on vendored files runs without it |
 | Claude Desktop chat | yes | yes | through the brain MCP server (see `System/Setup.md`) |
 | claude.ai Project | yes | no | read-only pack made by `/company-brain:export` (company and team layers only) |
 

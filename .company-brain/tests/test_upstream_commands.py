@@ -45,17 +45,22 @@ def fake_upstream(tmp_path, monkeypatch):
     git(tmp_path, "init", "-q", "-b", "main", str(up))
     for name in ("save", "old", "skipped"):
         (up / "commands" / f"{name}.md").write_text(f"# {name}\n", encoding="utf-8")
+    (up / "scripts").mkdir()
+    (up / "scripts" / "tool.py").write_text("print('one')\n", encoding="utf-8")
     git(up, "add", "-A"), git(up, "commit", "-q", "-m", "one")
     first = git(up, "rev-parse", "HEAD")
     (up / "commands" / "save.md").write_text("# save\nnew step\n", encoding="utf-8")
     (up / "commands" / "skipped.md").write_text("# skipped\nchanged too\n", encoding="utf-8")
     (up / "commands" / "old.md").unlink()
     (up / "commands" / "fresh.md").write_text("# fresh\n", encoding="utf-8")
+    (up / "scripts" / "tool.py").write_text("print('two')\n", encoding="utf-8")
     git(up, "add", "-A"), git(up, "commit", "-q", "-m", "two")
     root = tmp_path / "brain"
     git(tmp_path, "init", "-q", str(root))
+    (root / "tool.py").write_text("print('one')\n", encoding="utf-8")
     conf = tmp_path / "upstream.json"
-    conf.write_text(json.dumps({"repo": str(up), "branch": "main", "commit": first, "files": [], "commands": {
+    files = [{"upstream": "scripts/tool.py", "local": "tool.py", "mode": "copy", "sha256": "x"}]
+    conf.write_text(json.dumps({"repo": str(up), "branch": "main", "commit": first, "files": files, "commands": {
         "dir": "commands", "commit": first, "playbook": "references/upstream-sync.md", "map": {
             "save": {"decision": "adapted", "skill": "save"},
             "old": {"decision": "covered", "skill": "daily"},
@@ -85,5 +90,25 @@ def test_mark_waits_until_every_command_is_triaged(fake_upstream):
     assert brain_cli.upstream_check(root, mark=True)["marked"] == head
     data = json.loads(conf.read_text(encoding="utf-8"))
     assert data["commit"] == head and data["commands"]["commit"] == head
-    assert brain_cli.upstream_check(root)["commands"] == {
-        "base": head, "playbook": "references/upstream-sync.md", "new": [], "removed": [], "changed": []}
+    tri = brain_cli.upstream_check(root)["commands"]
+    assert (tri["new"], tri["removed"], tri["changed"], tri["missing_dir"]) == ([], [], [], False)
+
+
+def test_a_refused_mark_copies_nothing(fake_upstream):
+    root, conf, _ = fake_upstream
+    before = conf.read_text(encoding="utf-8")
+    with pytest.raises(SystemExit, match="triage the upstream commands first"):
+        brain_cli.upstream_check(root, copy=True, mark=True)
+    assert (root / "tool.py").read_text(encoding="utf-8") == "print('one')\n"
+    assert conf.read_text(encoding="utf-8") == before
+
+
+def test_moved_commands_folder_is_reported_not_fatal(fake_upstream):
+    root, conf, _ = fake_upstream
+    data = json.loads(conf.read_text(encoding="utf-8"))
+    data["commands"]["dir"] = "skills"  # upstream has no skills/ folder
+    conf.write_text(json.dumps(data), encoding="utf-8")
+    res = brain_cli.upstream_check(root)
+    assert res["commands"]["missing_dir"] and [f["local"] for f in res["changed"]] == ["tool.py"]
+    with pytest.raises(SystemExit, match="no skills/ folder"):
+        brain_cli.upstream_check(root, mark=True)

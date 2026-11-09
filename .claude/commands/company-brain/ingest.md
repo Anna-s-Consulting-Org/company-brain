@@ -7,5 +7,5 @@ argument-hint: "<path, URL or text>"
 
 Run the Company Brain `ingest` skill. Arguments, if any: $ARGUMENTS
 
-1. Read `.company-brain/skills/ingest/SKILL.md` in this folder and follow it step by step. If this folder has no `.company-brain/`, read `skills/ingest/SKILL.md` in the engine folder named on the **Company Brain** line of the session context. If neither exists, say that the Company Brain engine was not found (open Claude in the brain folder, or install the company-brain plugin) and stop.
+1. Find the brain root: the nearest folder at or above the current one that holds `brain.yaml`. Read `.company-brain/skills/ingest/SKILL.md` there and follow it step by step. If the brain has no `.company-brain/`, read `skills/ingest/SKILL.md` in the engine folder named on the **Company Brain** line of the session context. If neither exists, say that the Company Brain engine was not found (open Claude in the brain folder, or install the company-brain plugin) and stop.
 2. When the skill refers to its own directory, that is the folder holding the `SKILL.md` you read. Its "Before you start" section says how to find the brain and how to run the `brain` CLI.
