@@ -185,5 +185,213 @@
       "mode": "adapt",
       "commit": "58ca891156088635b4c28615d71a7842a8ca3143"
     }
-  ]
+  ],
+  "commands": {
+    "dir": "commands",
+    "commit": "0cb032087c7862aa09f43fea48d00913c741a247",
+    "playbook": ".company-brain/references/upstream-sync.md",
+    "map": {
+      "create-command": {
+        "decision": "declined",
+        "reason": "scaffolds upstream commands; skills here follow references/upstream-sync.md"
+      },
+      "crew": {
+        "decision": "covered",
+        "skill": "crew"
+      },
+      "idea-discovery": {
+        "decision": "declined",
+        "reason": "personal thinking tool over one person's notes; no company or team use case yet"
+      },
+      "notebooklm": {
+        "decision": "declined",
+        "reason": "needs API keys (Perplexity, Grok, Gemini) and scripts this engine does not vendor; web sources come in through ingest"
+      },
+      "obsidian-architect": {
+        "decision": "declined",
+        "reason": "architecture notes from a codebase, for a developer's vault"
+      },
+      "obsidian-board": {
+        "decision": "covered",
+        "skill": "board"
+      },
+      "obsidian-board-hygiene": {
+        "decision": "covered",
+        "skill": "board",
+        "note": "the board skill's hygiene step"
+      },
+      "obsidian-brainstorm": {
+        "decision": "declined",
+        "reason": "personal thinking tool over one person's notes; no company or team use case yet"
+      },
+      "obsidian-calendar": {
+        "decision": "deferred",
+        "reason": "daily and meeting read the calendar connector; the vault-versus-calendar reconcile and schedule modes are not ported"
+      },
+      "obsidian-capture": {
+        "decision": "adapted",
+        "skill": "capture"
+      },
+      "obsidian-catchup": {
+        "decision": "declined",
+        "reason": "processes the Telegram journal bot's queue, which is not part of this engine"
+      },
+      "obsidian-challenge": {
+        "decision": "adapted",
+        "skill": "challenge"
+      },
+      "obsidian-checkin": {
+        "decision": "covered",
+        "skill": "checkin"
+      },
+      "obsidian-connect": {
+        "decision": "declined",
+        "reason": "personal thinking tool over one person's notes; no company or team use case yet; the name is taken here by the Sources connect skill"
+      },
+      "obsidian-daily": {
+        "decision": "covered",
+        "skill": "daily"
+      },
+      "obsidian-decide": {
+        "decision": "covered",
+        "skill": "decide"
+      },
+      "obsidian-distill": {
+        "decision": "covered",
+        "skill": "ingest",
+        "note": "ingest writes key claims with their source"
+      },
+      "obsidian-emerge": {
+        "decision": "declined",
+        "reason": "personal thinking tool over one person's notes; no company or team use case yet"
+      },
+      "obsidian-export": {
+        "decision": "covered",
+        "skill": "export"
+      },
+      "obsidian-find": {
+        "decision": "adapted",
+        "skill": "find"
+      },
+      "obsidian-graduate": {
+        "decision": "covered",
+        "skill": "project",
+        "note": "an idea becomes a project (project) or an opportunity or solution (ost)"
+      },
+      "obsidian-health": {
+        "decision": "covered",
+        "skill": "health"
+      },
+      "obsidian-ingest": {
+        "decision": "covered",
+        "skill": "ingest"
+      },
+      "obsidian-init": {
+        "decision": "covered",
+        "skill": "setup"
+      },
+      "obsidian-learn": {
+        "decision": "declined",
+        "reason": "personal thinking tool over one person's notes; no company or team use case yet"
+      },
+      "obsidian-log": {
+        "decision": "covered",
+        "skill": "save",
+        "note": "save writes the session's work, as upstream's save absorbs log"
+      },
+      "obsidian-merge": {
+        "decision": "deferred",
+        "reason": "merging near-duplicates needs layer rules (a shared and a personal copy must not be merged); not ported yet"
+      },
+      "obsidian-panel": {
+        "decision": "deferred",
+        "reason": "multi-perspective decision review; could extend decide"
+      },
+      "obsidian-person": {
+        "decision": "covered",
+        "skill": "org"
+      },
+      "obsidian-project": {
+        "decision": "covered",
+        "skill": "project"
+      },
+      "obsidian-projects": {
+        "decision": "declined",
+        "reason": "project status from local git repositories, for a developer's vault"
+      },
+      "obsidian-recap": {
+        "decision": "adapted",
+        "skill": "recap"
+      },
+      "obsidian-reconcile": {
+        "decision": "covered",
+        "skill": "reconcile"
+      },
+      "obsidian-recurring": {
+        "decision": "declined",
+        "reason": "personal recurring obligations; boards and due dates cover the team case"
+      },
+      "obsidian-reindex": {
+        "decision": "deferred",
+        "reason": "brain search uses a semantic index when one exists, but the indexer is not vendored here"
+      },
+      "obsidian-retrieval-eval": {
+        "decision": "deferred",
+        "reason": "search evaluation; useful once the semantic index is vendored"
+      },
+      "obsidian-review": {
+        "decision": "covered",
+        "skill": "weekly",
+        "note": "monthly reviews: recap"
+      },
+      "obsidian-save": {
+        "decision": "adapted",
+        "skill": "save"
+      },
+      "obsidian-synthesize": {
+        "decision": "declined",
+        "reason": "personal thinking tool over one person's notes; no company or team use case yet"
+      },
+      "obsidian-task": {
+        "decision": "adapted",
+        "skill": "task"
+      },
+      "obsidian-visualize": {
+        "decision": "declined",
+        "reason": "brain refresh already generates the canvases this brain uses (OST trees, org chart)"
+      },
+      "obsidian-world": {
+        "decision": "covered",
+        "skill": "context"
+      },
+      "podcast": {
+        "decision": "declined",
+        "reason": "needs API keys (Perplexity, Grok, Gemini) and scripts this engine does not vendor; web sources come in through ingest"
+      },
+      "research": {
+        "decision": "declined",
+        "reason": "needs API keys (Perplexity, Grok, Gemini) and scripts this engine does not vendor; web sources come in through ingest"
+      },
+      "research-deep": {
+        "decision": "declined",
+        "reason": "needs API keys (Perplexity, Grok, Gemini) and scripts this engine does not vendor; web sources come in through ingest"
+      },
+      "vault-deep-synthesis": {
+        "decision": "deferred",
+        "reason": "find and reconcile cover part of it; a topic synthesis across layers is not ported"
+      },
+      "x-pulse": {
+        "decision": "declined",
+        "reason": "needs API keys (Perplexity, Grok, Gemini) and scripts this engine does not vendor; web sources come in through ingest"
+      },
+      "x-read": {
+        "decision": "declined",
+        "reason": "needs API keys (Perplexity, Grok, Gemini) and scripts this engine does not vendor; web sources come in through ingest"
+      },
+      "youtube": {
+        "decision": "declined",
+        "reason": "needs API keys (Perplexity, Grok, Gemini) and scripts this engine does not vendor; web sources come in through ingest"
+      }
+    }
+  }
 }

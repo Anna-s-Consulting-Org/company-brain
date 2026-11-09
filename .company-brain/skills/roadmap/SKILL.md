@@ -1,6 +1,7 @@
 ---
 name: roadmap
 description: Maintain an outcome-based Now, Next, Later roadmap for the company or a team - syncs cards with solutions and projects, keeps each card tied to the key result it serves, moves shipped work, and summarizes the roadmap. Use for "roadmap", "update the roadmap", "what's now next later", "move X to now".
+argument-hint: "[company | team]"
 ---
 
 # Roadmap

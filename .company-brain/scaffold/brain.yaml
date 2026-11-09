@@ -14,6 +14,7 @@ brain:
 
 git:
   # Paths git may carry besides the built-in system paths (.company-brain/, System/, Templates/,
-  # .claude/, .claude-plugin/, .github/, .obsidian/ and the root docs). Content paths can never be
-  # added. Example: allow: [docs, CONTRIBUTING.md]
-  allow: []
+  # .claude/, .claude-plugin/, .github/, .obsidian/, CLAUDE.md, Home.md, brain, brain.yaml and the
+  # dotfiles every brain has). Repository docs are listed here: add a new one (CONTRIBUTING.md, a
+  # docs folder) in the same commit as the file. Content paths can never be added.
+  allow: [README.md, AGENTS.md, ROADMAP.md, LICENSE, THIRD_PARTY_NOTICES.md]

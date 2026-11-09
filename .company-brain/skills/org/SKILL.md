@@ -1,6 +1,7 @@
 ---
 name: org
 description: Manage the organization in the brain - shared people profiles (role, team, manager, with bi-temporal history), team spaces and charters, and the generated org chart. Use for "add a person", "new team", "X moved to team Y", "who reports to", "org chart", "who is on the platform team".
+argument-hint: "[add person | new team | X moved to Y]"
 ---
 
 # Organization

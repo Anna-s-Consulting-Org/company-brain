@@ -1,6 +1,7 @@
 ---
 name: team-weekly
 description: Roll up a team's week - collects every member's published team update, KR progress versus last week, board movement, team meetings and decisions; writes the team weekly note and flags missing updates, risks, and decisions needed. Use for "team weekly", "roll up the team updates", "team status", "prepare the team sync".
+argument-hint: "[team]"
 ---
 
 # Team weekly

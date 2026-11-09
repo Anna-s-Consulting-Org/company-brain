@@ -1,6 +1,7 @@
 ---
 name: decide
 description: Record a decision in the right layer - the decision, context, options considered, reasoning, consequences, who decided, and what it supersedes; links it from the meeting, project, or OKR it affects. Use for "we decided", "record this decision", "log a decision", "ADR", "why did we decide".
+argument-hint: "[the decision]"
 ---
 
 # Decide

@@ -198,15 +198,35 @@ def test_generic_examples_and_scaffold_hubs_pass(repo):
     assert res["staged"] == ["System/Skills.md"] and not res["problems"]
 
 
-def test_markers_already_in_the_file_are_not_new_disclosures(repo):
+def test_an_edited_line_keeps_its_example_but_a_new_use_is_checked(repo):
     spec = repo / ".company-brain" / "references" / "schemas.md"
-    assert "[[Platform]]" in spec.read_text(encoding="utf-8")  # a shipped example that matches the test team
-    spec.write_text(spec.read_text(encoding="utf-8") + "\nAnother example: [[Platform]].\n", encoding="utf-8")
+    lines = spec.read_text(encoding="utf-8").split("\n")
+    i = next(n for n, l in enumerate(lines) if "[[Platform]]" in l)  # a shipped example matching the test team
+    lines[i] += " (example)"
+    spec.write_text("\n".join(lines), encoding="utf-8")
     assert not json.loads(cli(repo, "--json", "git", "stage", check=True).stdout)["problems"]
-    doc = repo / "System" / "Skills.md"
-    doc.write_text(doc.read_text(encoding="utf-8") + "\nSee [[Platform]].\n", encoding="utf-8")
+    spec.write_text(spec.read_text(encoding="utf-8") + "\nAnother use: [[Platform]].\n", encoding="utf-8")
     problems = json.loads(cli(repo, "--json", "git", "stage").stdout)["problems"]
     assert any("[[Platform]]" in p["problem"] for p in problems)
+
+
+@pytest.mark.parametrize("setting", ["diff.noprefix", "diff.mnemonicPrefix"])
+def test_user_diff_settings_cannot_hide_a_file_from_the_scan(repo, setting):
+    git(repo, "config", setting, "true")
+    doc = repo / "System" / "Skills.md"
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nAsk Dana Smith.\n", encoding="utf-8")
+    git(repo, "add", "System/Skills.md")
+    r = cli(repo, "git", "check", "--staged")
+    assert r.returncode == 1 and "Dana Smith" in r.stderr
+
+
+def test_team_paths_need_a_boundary(repo):
+    doc = repo / "System" / "Skills.md"
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nExample: `Teams/Platformers/`.\n", encoding="utf-8")
+    assert not json.loads(cli(repo, "--json", "git", "stage", check=True).stdout)["problems"]
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nSee `Teams/Platform/`.\n", encoding="utf-8")
+    problems = json.loads(cli(repo, "--json", "git", "stage").stdout)["problems"]
+    assert any("team 'Platform'" in p["problem"] for p in problems)
 
 
 def test_an_added_line_that_looks_like_a_diff_header_does_not_stop_the_scan(repo):
@@ -250,7 +270,7 @@ def test_git_allow_adds_system_paths_but_never_content(repo):
     (repo / "docs" / "guide.md").write_text("A guide.\n", encoding="utf-8")
     git(repo, "add", "docs/guide.md")
     assert git(repo, "commit", "-m", "docs", check=False).returncode != 0
-    text =(repo / "brain.yaml").read_text(encoding="utf-8").replace("allow: []", "allow: [docs, Company]")
+    text = (repo / "brain.yaml").read_text(encoding="utf-8").replace("allow: [README.md", "allow: [docs, Company, README.md")
     (repo / "brain.yaml").write_text(text, encoding="utf-8")
     git(repo, "add", "brain.yaml")
     git(repo, "commit", "-q", "-m", "docs")
@@ -310,6 +330,21 @@ def test_a_teammate_gets_the_shared_copy_and_a_backup_of_their_own(fresh, tmp_pa
     assert json.loads(cli(mate, "whoami", check=True).stdout)["company"] == "Acme Labs"
     backups = list((mate / ".share-backup").iterdir())
     assert backups and any((b / "company.yaml").is_file() for b in backups)
+
+
+def test_share_moves_nothing_when_links_cannot_be_made(fresh, tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(fresh / ".company-brain" / "scripts"))
+    import brain
+    shared = tmp_path / "shared"
+    plan = brain.share_plan(fresh, str(shared))
+
+    def refuse(self, *args, **kwargs):
+        raise OSError("symbolic links are not available")
+    monkeypatch.setattr(Path, "symlink_to", refuse)
+    with pytest.raises(SystemExit, match="Nothing was moved"):
+        brain.share_apply(fresh, plan)
+    assert (fresh / "Company").is_dir() and not (fresh / "Company").is_symlink()
+    assert not (shared / "Company").exists() and not list(fresh.glob(".share-link-test-*"))
 
 
 def test_share_refuses_a_folder_that_contains_the_brain(fresh, tmp_path):

@@ -1,6 +1,7 @@
 ---
 name: reconcile
 description: Find and resolve contradictions between notes - claims that disagree, people or team facts newer sources overturn, decisions reversed but never updated, knowledge notes built on a source that has since changed. Every contradiction must be proven with a verbatim quote from both sides before anything is rewritten. Use for "find contradictions", "reconcile the brain", "do my notes disagree", "fix conflicting notes".
+argument-hint: "[topic]"
 ---
 
 # Reconcile
@@ -27,6 +28,7 @@ The brain should never hold two notes that disagree without knowing they disagre
     {"path": "<other note path>", "line": 40, "quote": "<line copied from that note>"}]
    EOF
    ```
+   - Put the closing `EOF` at the very start of its line, without the list indentation, or bash never ends the heredoc.
    - Both claims must come back `"ok": true` (the checker exits 1 if any fails). If either fails, drop the contradiction: no rewrite, no conflict record. List it under **Dropped as unproven** with the `reason` the checker gave.
    - Use `found_line` from the output, not the line a subagent gave.
    - Source freshness findings compare dates, not claims, so they skip this step.

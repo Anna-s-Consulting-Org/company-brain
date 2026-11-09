@@ -1,6 +1,7 @@
 ---
 name: meeting
 description: Turn a meeting into brain notes - from a calendar event, a transcript or notes (Granola, Zoom, Gemini, pasted text), or live notes; files it in the right layer by meeting type (1:1s stay personal), extracts decisions and action items, routes actions to owners' boards, and links people, projects, and KRs. Use for "process this meeting", "meeting notes", "summarize my call with", "1:1 with", "prep for my meeting".
+argument-hint: "[event, transcript or notes]"
 ---
 
 # Meeting

@@ -1,6 +1,7 @@
 ---
 name: strategy
 description: Draft or revise mission, vision, values, and strategy - Rumelt strategy kernel (diagnosis, guiding policy, coherent actions), Playing to Win choice cascade, and Business Model Canvas - grounded in existing notes, sources, and research. Use for "write our mission", "draft a vision", "define values", "what is our strategy", "strategy kernel", "where to play how to win", "business model canvas".
+argument-hint: "[what to work on]"
 ---
 
 # Strategy

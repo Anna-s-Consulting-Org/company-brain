@@ -1,6 +1,7 @@
 ---
 name: vpc
 description: Create or update a Value Proposition Canvas for a customer segment - customer jobs, pains, and gains from evidence, the value map (products and services, pain relievers, gain creators), fit assessment, and assumptions to test as experiments. Use for "value proposition canvas", "VPC for <segment>", "customer jobs pains gains", "do we have product market fit with <segment>".
+argument-hint: "[segment]"
 ---
 
 # Value Proposition Canvas

@@ -1,6 +1,7 @@
 ---
 name: connect
 description: Connect folders from the Desktop or Google Drive to the brain as read-only sources (symlinks under Sources/), share mounts with teammates through Company/company.yaml, recreate shared mounts on a new machine, and resolve Google Docs pointer files. Use for "connect my desktop folder", "link Google Drive", "add a source", "mount the strategy folder", "sync sources".
+argument-hint: "[folder]"
 ---
 
 # Connect

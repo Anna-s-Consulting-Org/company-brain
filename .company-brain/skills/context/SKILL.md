@@ -1,6 +1,7 @@
 ---
 name: context
 description: Load company context from the brain before strategic work - identity, mission, vision, values, current OKR cascade, strategy, VPCs, teams, roadmap - in progressive levels to save tokens. Use for "what is our strategy", "load company context", "remind me of our OKRs", "how does this fit our goals", or before drafting anything strategic.
+argument-hint: "[0-3 or a question]"
 ---
 
 # Context

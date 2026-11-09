@@ -1,6 +1,7 @@
 ---
 name: okr
 description: Create, align, check in, and score OKRs at company, team, or personal level - annual and quarterly objectives with measurable key results, parent links up the cascade, weekly check-ins, end-of-period scoring, and the generated OKR tree. Use for "create an OKR", "set team OKRs", "check in on my KRs", "score the quarter", "show the OKR tree", "are we aligned".
+argument-hint: "[create | checkin | score | align] [details]"
 ---
 
 # OKRs
