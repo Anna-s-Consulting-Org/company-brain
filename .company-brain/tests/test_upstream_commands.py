@@ -40,7 +40,7 @@ def test_every_triaged_command_has_a_valid_decision():
 # An upstream command in upstream's own shape: front matter with triggers, the standard intro, the
 # personal-vault folders, tools and scripts, and the closing rules the skill sections replace.
 FRESH = """---
-description: Refresh the ideas list from the vault \u2014 quickly
+description: "Refresh the ideas list from the vault \u2014 quickly, issue #1 style, like /obsidian-gone"
 category: vault
 argument-hint: "[topic]"
 triggers_en: ["refresh ideas", "update my ideas"]
@@ -53,6 +53,11 @@ Use the obsidian-second-brain skill. Execute `/obsidian-fresh $ARGUMENTS`:
 2. Search the ideas folder (resolved per `references/folder-map.md`) with `obsidian_search`, then run `/save`.
 3. Run `uv run --directory "SKILL_ROOT" scripts/checkin.py --path <vault> pick` and `uv run --directory "SKILL_ROOT" scripts/nope.py`.
 4. Ask `/obsidian-unknown` for help, then read `scripts/crew.py` and the agenda folder (resolved per `references/folder-map.md` - wiki-style `wiki/agenda/`).
+5. Read `_CLAUDE.md` first, then load `CRITICAL_FACTS.md` for the timezone.
+6. Mark each one \u2713 when done, then run:
+   ```bash
+   uv run --directory "SKILL_ROOT" scripts/nope2.py --path <vault>
+   ```
 
 ---
 
@@ -146,21 +151,34 @@ def test_draft_does_the_mechanical_part_and_marks_the_rest(fake_upstream, tmp_pa
     skills = tmp_path / "skills"
     res = brain_cli.draft_skill(root, data, ref, "fresh", skills_dir=skills)
     text = (skills / "fresh" / "SKILL.md").read_text(encoding="utf-8")
-    assert res["skill"] == "fresh" and text.isascii()
-    assert text.startswith('---\nname: fresh\ndescription: Refresh the ideas list from the brain - quickly. '
-                           'Use for "refresh ideas", "update my ideas".\nargument-hint: "[topic]"\n---\n')
+    meta = brain_cli.parse_front_matter(text)[0]
+    assert res["skill"] == "fresh"
+    # the ' #' would start a YAML comment, so the description is quoted and reads back whole
+    assert meta["description"] == ('Refresh the ideas list from the brain - quickly, issue #1 style, like '
+                                   '/obsidian-gone. Use for "refresh ideas", "update my ideas".')
+    assert text.splitlines()[2].startswith('description: "') and meta["argument-hint"] == "[topic]"
+    # a draft never starts on its own, and the dead command in the description is on the checklist
+    assert meta["disable-model-invocation"] == "true"
+    assert f"{brain_cli.DRAFT_MARKER}: in the description, /obsidian-gone has no skill here." in text
     # the standard sections come from the existing skills; upstream's intro and closing rules are gone
     assert "## Before you start" in text and "## Always" in text and "## Adaptation checklist" in text
     assert "Use the obsidian-second-brain skill" not in text and "**AI-first rule:**" not in text
-    assert "_CLAUDE.md" not in text and "Read `CLAUDE.md` first" not in text
+    assert "_CLAUDE.md" not in text and "Read `CLAUDE.md` first if it exists" not in text
     # mapped: folders, search, adapted commands, vendored scripts
     assert "the `Personal/Notes/` folder" in text and "`brain search`" in text and "/company-brain:save" in text
     assert 'python3 "<engine>/scripts/checkin.py" --path <brain> pick' in text
     # a path is not a command, and what cannot be mapped is marked, not guessed
     assert "`scripts/crew.py`" in text
     for todo in ("scripts/nope.py is not vendored here", "/obsidian-unknown has no skill here",
-                 "no 'agenda' folder here"):
+                 "no 'agenda' folder here", "non-ASCII text: rewrite it in ASCII"):
         assert f"{brain_cli.DRAFT_MARKER}: {todo}" in text, todo
+    # a step that says more than "read CLAUDE.md first" keeps its other instruction
+    assert "Read `CLAUDE.md` first, then load `CRITICAL_FACTS.md` for the timezone." in text
+    # inside a code block the line stays runnable; its markers wait under the closing fence
+    lines = text.splitlines()
+    code = next(i for i, l in enumerate(lines) if "scripts/nope2.py" in l)
+    assert brain_cli.DRAFT_MARKER not in lines[code] and lines[code + 1].strip() == "```"
+    assert lines[code + 2] == f"   {brain_cli.DRAFT_MARKER}: scripts/nope2.py is not vendored here (in the code block above)."
     assert res["todos"] == text.count(brain_cli.DRAFT_MARKER) >= 7
     with pytest.raises(SystemExit, match="exists; pass --as"):
         brain_cli.draft_skill(root, data, ref, "fresh", skills_dir=skills)
@@ -171,3 +189,46 @@ def test_no_skill_ships_with_draft_markers():
     left = [p.parent.name for p in sorted((ENGINE / "skills").glob("*/SKILL.md"))
             if brain_cli.DRAFT_MARKER in p.read_text(encoding="utf-8")]
     assert not left, f"finish these drafts with references/upstream-sync.md: {left}"
+
+
+def test_draft_runs_on_its_own(tmp_path):
+    for flag in ("--mark", "--copy", "--diff"):
+        r = subprocess.run([sys.executable, str(ENGINE / "scripts" / "brain.py"), "--root", str(ENGINE.parent),
+                            "upstream-check", "--draft", "obsidian-merge", flag], capture_output=True, text=True)
+        assert r.returncode != 0 and "--draft runs on its own" in r.stderr, flag
+
+
+def test_a_template_upstream_remote_is_never_used(fake_upstream, tmp_path):
+    root, _, head = fake_upstream
+    # in a fork of the template, `upstream` usually names the template repository
+    other = tmp_path / "template"
+    git(tmp_path, "init", "-q", "-b", "main", str(other))
+    (other / "README.md").write_text("template\n", encoding="utf-8")
+    git(other, "add", "-A"), git(other, "commit", "-q", "-m", "template")
+    git(root, "remote", "add", "upstream", str(other))
+    res = brain_cli.upstream_check(root)
+    assert res["head"] == head and res["ref"] == f"{brain_cli.UPSTREAM_REMOTE}/main"
+    assert git(root, "remote", "get-url", "upstream") == str(other)  # left as it was
+
+
+def test_drafts_get_no_command_and_stay_off_mcp(tmp_path, monkeypatch):
+    sys.path.insert(0, str(ENGINE / "mcp" / "vault"))
+    import vault_ops
+    skills = tmp_path / "skills"
+    (skills / "half").mkdir(parents=True)
+    (skills / "half" / "SKILL.md").write_text(
+        f"---\nname: half\ndescription: A draft.\n---\n\n{brain_cli.DRAFT_MARKER}: finish me.\n", encoding="utf-8")
+    monkeypatch.setattr(vault_ops, "_commands_dir", lambda: skills)
+    assert vault_ops.list_skills() == [] and "unfinished draft" in vault_ops.get_skill("half")["error"]
+    monkeypatch.setattr(brain_cli, "ENGINE", tmp_path)
+    root = tmp_path / "brain"
+    root.mkdir()
+    assert brain_cli.commands_sync(root)["added"] == []
+
+
+def test_the_mcp_server_reads_skill_front_matter_like_the_cli():
+    sys.path.insert(0, str(ENGINE / "mcp" / "vault"))
+    import vault_ops
+    for md in sorted((ENGINE / "skills").glob("*/SKILL.md")):
+        mine, theirs = brain_cli.skill_meta(md), vault_ops._parse_command(md)[0]
+        assert {k: theirs.get(k) for k in mine} == mine, md.parent.name

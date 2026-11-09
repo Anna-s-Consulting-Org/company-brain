@@ -16,7 +16,7 @@ How to take what obsidian-second-brain (upstream) adds or changes and fit it to 
 
 ## The loop
 
-1. **See what changed**: `./brain upstream-check`. It fetches upstream and reports borrowed files that changed and, for commands, those not triaged yet, those removed upstream, and adapted or covered ones that changed since triage. `--diff` prints the changes.
+1. **See what changed**: `./brain upstream-check`. It fetches upstream into a git remote of its own, `osb-upstream` (never `upstream`, which in a fork of this template usually names the template), and reports borrowed files that changed and, for commands, those not triaged yet, those removed upstream, and adapted or covered ones that changed since triage. `--diff` prints the changes.
 2. **Copy files**: `./brain upstream-check --copy` takes the changed `copy` files as they are and updates their checksums. Run the tests: a vendored test may need a new skip in `tests/conftest.py` if it assumes upstream's layout. A skip is not allowed to hide a real failure.
 3. **Port adapted files** by hand: read the diff, apply what fits, keep what is ours (layers, `brain.yaml` lookup, the CLI).
 4. **Triage new commands** (below) and record each decision in `commands.map`.
@@ -36,12 +36,12 @@ Ask in this order and record the first answer that fits:
 
 ## Adapting a command into a skill
 
-Start from a draft: `./brain upstream-check --draft <command>` (add `--as <name>` when the default name, the command without its `obsidian-` prefix, is taken). It writes `.company-brain/skills/<name>/SKILL.md` with the front matter (description, `Use for` from upstream's English triggers, `argument-hint`), the standard sections, an adaptation checklist, and upstream's steps with the mechanical swaps done: upstream folders and references mapped to this brain's, `obsidian_search` to `brain search`, upstream commands to the skills they became, vendored scripts to `python3 "<engine>/scripts/..."`, ASCII punctuation. Whatever it cannot map (a folder this brain does not have, a script that is not vendored, a command with no skill) it marks `TODO(upstream-sync)` on that line. It never decides layers or approvals: that is the part you finish. A test fails while any skill still holds a marker.
+Start from a draft: `./brain upstream-check --draft <command>` (add `--as <name>` when the default name, the command without its `obsidian-` prefix, is taken). It writes `.company-brain/skills/<name>/SKILL.md` with the front matter (description, `Use for` from upstream's English triggers, `argument-hint`), the standard sections, an adaptation checklist, and upstream's steps with the mechanical swaps done: upstream folders and references mapped to this brain's, `obsidian_search` to `brain search`, upstream commands to the skills they became, vendored scripts to `python3 "<engine>/scripts/..."`, ASCII punctuation. Whatever it cannot map (a folder this brain does not have, a script that is not vendored, a command with no skill, leftover non-ASCII text) it marks `TODO(upstream-sync)` on that line, or under the closing fence for a line inside a code block, so the code stays runnable; what the description could not map goes on the checklist. It never decides layers or approvals: that is the part you finish. Until it is finished the draft carries `disable-model-invocation: true`, so Claude never starts it on its own; `./brain commands` writes no command for it and the brain MCP server does not offer it. A test fails while any skill still holds a marker. `--draft` runs on its own: run the check, `--copy` and `--mark` separately.
 
 The finished skill:
 
 - **Front matter**: `name: <name>`, a `description` that says what it does and ends with `Use for "...", "..."` trigger phrases, and `argument-hint: "..."` when it takes arguments. Quote the hint.
-- **Body**: a short purpose paragraph, then the same `## Before you start` and `## Always` sections every other skill has (the draft copies them from an existing skill), with the steps in `## Steps` between them. Delete the draft's first paragraph and its adaptation checklist once every item is done.
+- **Body**: a short purpose paragraph, then the same `## Before you start` and `## Always` sections every other skill has (the draft copies them from an existing skill), with the steps in `## Steps` between them. Delete the draft's first paragraph, its adaptation checklist and the `disable-model-invocation` line once every item is done.
 - **Rewrite for this brain**, never copy upstream paths or tools:
 
   | Upstream | Here |

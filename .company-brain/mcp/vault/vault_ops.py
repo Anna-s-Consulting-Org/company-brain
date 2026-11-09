@@ -1349,6 +1349,11 @@ _EXCLUDED_SKILLS = {
 }
 
 
+# An unfinished draft written by `brain upstream-check --draft` (scripts/brain.py DRAFT_MARKER) is not
+# offered over MCP until it is finished.
+_DRAFT_MARKER = "TODO(upstream-sync)"
+
+
 def list_skills() -> List[Dict[str, Any]]:
     """List the Company Brain skills exposable over MCP (name + description)."""
     cmds = _commands_dir()
@@ -1360,6 +1365,8 @@ def list_skills() -> List[Dict[str, Any]]:
         if name in _EXCLUDED_SKILLS:
             continue
         meta, _ = _parse_command(md)
+        if _DRAFT_MARKER in (_read_safe(md) or ""):
+            continue
         out.append(
             {
                 "name": name,
@@ -1387,6 +1394,8 @@ def get_skill(name: str) -> Dict[str, Any]:
     if md is None or not md.is_file():
         return {"error": f"unknown skill: {name}"}
     meta, body = _parse_command(md)
+    if _DRAFT_MARKER in (_read_safe(md) or ""):
+        return {"error": f"skill '{name}' is an unfinished draft"}
     note = (
         "Run this skill using the MCP tools on this server for brain I/O: "
         "brain_search (find/recall), brain_read_note (paginated read to EOF), "
@@ -1472,10 +1481,27 @@ def _parse_command(md: Path):
         if end != -1:
             fm = text[3:end]
             body = text[end + 4 :]
+            # same reading as scripts/brain.py parse_front_matter (this module must stay standalone, so
+            # it keeps its own copy; tests/test_upstream_commands.py checks both agree on every skill)
             for line in fm.splitlines():
-                if ":" in line and not line.lstrip().startswith(("-", "#", "[")):
-                    key, _, val = line.partition(":")
-                    meta[key.strip()] = val.strip().strip('"').strip("'")
+                key, sep, val = line.partition(":")
+                if not sep or line[:1].isspace() or not re.fullmatch(r"[A-Za-z][\w-]*", key):
+                    continue
+                val = val.strip()
+                double = re.fullmatch(r'("(?:[^"\\]|\\.)*"|\[.*\])\s*(?:#.*)?', val)
+                single = re.fullmatch(r"'((?:[^']|'')*)'\s*(?:#.*)?", val)
+                if val[:1] in (">", "|") or (val.startswith('"') and not double):
+                    pass
+                elif double:
+                    try:
+                        val = json.loads(double.group(1))
+                    except ValueError:
+                        pass
+                elif single:
+                    val = single.group(1).replace("''", "'")
+                else:
+                    val = re.split(r"\s+#", val, maxsplit=1)[0].rstrip()
+                meta[key] = val
     return meta, body
 
 
