@@ -895,8 +895,8 @@ def freshness_findings_for(root: Path, path: Path, today=None) -> list:
     return fl.lint_file(path, "/".join(parts), cfg, today or dt.date.today())
 
 
-def _git(root: Path, *args: str, check: bool = True, binary: bool = False, input=None):
-    r = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=not binary, input=input)
+def _git(root: Path, *args: str, check: bool = True, binary: bool = False):
+    r = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=not binary)
     if check and r.returncode:
         err = r.stderr.decode("utf-8", "replace") if binary else r.stderr
         raise SystemExit(f"error: git {' '.join(args)}: {err.strip()}")
@@ -2353,13 +2353,15 @@ def content_markers(root: Path) -> dict:
     and paths only, so a commit never reads (or, in Drive stream mode, downloads) the notes."""
     generic = _generic_names()
     company = str((load_config(root).get("company") or {}).get("name") or "").strip()
+    # names already public on purpose (a maintainer in LICENSE, a plugin author): brain.yaml git.public_names
+    public = {str(n).strip() for n in as_list((_read_yaml(root / "brain.yaml").get("git") or {}).get("public_names")) if n}
     people, note_names, note_paths = set(), {}, []
     for path in iter_md(root):
         rel = path.relative_to(root).as_posix()
         if rel.split("/")[0] not in ("Company", "Teams", "Personal"):
             continue
         name = path.stem.strip()
-        if rel.startswith("Company/Org/People/") and " " in name:
+        if rel.startswith("Company/Org/People/") and " " in name and name not in public:
             people.add(name)
         low = name.lower()
         if low in generic or re.match(r"(my )?okr tree - ", low):
@@ -2370,7 +2372,7 @@ def content_markers(root: Path) -> dict:
         if (root / "Teams").is_dir() else []
     teams_re = re.compile("Teams/(" + "|".join(map(re.escape, sorted(teams, key=len, reverse=True))) + r")(?![\w-])") \
         if teams else None  # "Teams/Ops" must not match "Teams/Operations"
-    company = company if company not in (PLACEHOLDER_COMPANY, "TBD", "Your Company Name") else ""
+    company = company if company not in (PLACEHOLDER_COMPANY, "TBD", "Your Company Name") and company not in public else ""
     return {"company": company, "company_re": _words_re([company]), "people": sorted(people),
             "people_re": _words_re(people), "teams_re": teams_re, "note_names": note_names, "note_paths": note_paths}
 
@@ -2396,6 +2398,31 @@ def scan_added_line(line: str, markers: dict) -> list:
             if stem in line:
                 found.append((stem, f"a path to company content {rel!r}"))
     return found
+
+
+_GIT_ESCAPES = {"a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13, '"': 34, "\\": 92}
+
+
+def _git_unquote(s: str) -> str:
+    """A path as a patch header prints it: git C-quotes names holding quotes, backslashes or control characters
+    (core.quotePath=false only stops it quoting non-ASCII)."""
+    if not (len(s) >= 2 and s[0] == s[-1] == '"'):
+        return s
+    body, out, i = s[1:-1], bytearray(), 0
+    while i < len(body):
+        if body[i] == "\\" and i + 1 < len(body):
+            nxt = body[i + 1]
+            if nxt in _GIT_ESCAPES:
+                out.append(_GIT_ESCAPES[nxt])
+                i += 2
+                continue
+            if re.fullmatch(r"[0-7]{3}", body[i + 1:i + 4]):
+                out.append(int(body[i + 1:i + 4], 8))
+                i += 4
+                continue
+        out += body[i].encode("utf-8")
+        i += 1
+    return out.decode("utf-8", "replace")
 
 
 def _staged_frontmatter_type(top: Path, git_path: str) -> tuple:
@@ -2433,15 +2460,20 @@ def git_check_staged(root: Path) -> list:
         # No pathspec (so no argument-length limit): every staged file, and only system files are scanned.
         # Fixed prefixes, so diff.noprefix or diff.mnemonicPrefix in the user's config cannot hide a file.
         # Fails closed: a git error stops the commit instead of skipping the scan.
-        diff = _git_text(top, "diff", "--cached", "--no-renames", "-U0", "--no-color", "--no-ext-diff",
-                         "--src-prefix=a/", "--dst-prefix=b/")
+        # Content (already refused above) is excluded so a forced `git add -f Company` is not diffed at all.
+        excludes = [f":(exclude){_top_rel(root, top, t)}" for t in CONTENT_TOP]
+        diff_args = ("diff", "--cached", "--no-renames", "--no-color", "--no-ext-diff", "--src-prefix=a/",
+                     "--dst-prefix=b/")
+        diff = _git_text(top, *diff_args, "-U0", "--", ".", *excludes)
         files, current, lineno, in_header = [], None, 0, False
         for line in diff.split("\n"):
             if line.startswith("diff --git "):
                 current, in_header = None, True
             elif in_header and line.startswith("+++ "):
-                # a header only before the file's first hunk: an added line "++ x" also reads "+++ x"
-                p = line[4:].strip().strip('"')
+                # a header only before the file's first hunk: an added line "++ x" also reads "+++ x".
+                # git ends a name holding a space with a tab, and C-quotes one holding quotes or control chars.
+                raw = line[4:]
+                p = _git_unquote(raw[:-1] if raw.endswith("\t") else raw)
                 rel = _brain_rel(root, top, p[2:]) if p.startswith("b/") and p[2:] in wanted else None
                 current = {"rel": rel, "added": [], "removed": []} if rel else None
                 if current:
@@ -2456,12 +2488,23 @@ def git_check_staged(root: Path) -> list:
                 current["added"].append((lineno, line[1:]))
                 lineno += 1
         for f in files:
-            removed, spent = "\n".join(f["removed"]), {}
+            budget = {}  # what the removed lines held, found the same way (whole words), so "Slacking" pays for nothing
+            for text in f["removed"]:
+                for marker, _ in scan_added_line(text, markers):
+                    budget[marker] = budget.get(marker, 0) + 1
             for lineno, text in f["added"]:
                 for marker, what in scan_added_line(text, markers):
-                    spent[marker] = spent.get(marker, 0) + 1
-                    if spent[marker] > removed.count(marker):
+                    budget[marker] = budget.get(marker, 0) - 1
+                    if budget[marker] < 0:
                         problems.append({"path": f"{f['rel']}:{lineno}", "problem": f"adds {what}"})
+        # fail closed: a system file with added text lines that no header matched was not scanned
+        seen = {f["rel"] for f in files}
+        for entry in _git_z(top, *diff_args, "--numstat", "-z", "--", ".", *excludes):
+            added, _, path = entry.split("\t", 2) if entry.count("\t") >= 2 else ("0", "", "")
+            rel = _brain_rel(root, top, path) if path in wanted else None
+            if rel and added not in ("0", "-") and rel not in seen:
+                problems.append({"path": rel, "problem": "its staged lines could not be read for checking; rename "
+                                                         "the file (no quotes, backslashes or tabs) and stage it again"})
     return problems
 
 
@@ -2507,9 +2550,8 @@ def git_stage(root: Path) -> dict:
     st = git_status(root)
     top = git_toplevel(root)
     paths = [_top_rel(root, top, i["path"]) for i in st["system"]]
-    if paths:  # on stdin, not argv: thousands of paths must not hit the argument-length limit
-        _git(top, "--literal-pathspecs", "add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul",
-             input="\0".join(paths))
+    for i in range(0, len(paths), 200):  # batches: no argument-length limit, and no git 2.26+ option needed
+        _git(top, "--literal-pathspecs", "add", "-A", "--", *paths[i:i + 200])
     return {"staged": [i["path"] for i in st["system"]], "left_out": [i["path"] for i in st["content"] + st["other"]],
             "problems": git_check_staged(root)}
 

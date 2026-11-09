@@ -32,6 +32,6 @@ Other paths are refused until they are listed under `git.allow` in `brain.yaml` 
 
 ## Always
 - Never stage with `git add -A`, `git add .` or `git commit -a` in the brain folder: they would pick up anything a future `.gitignore` change exposes. Use `brain git stage`, or name system paths one by one.
-- Never bypass the guard (`--no-verify`) to commit content. If the guard is wrong about a genuine system file, add its path to `git.allow` in `brain.yaml` as part of the same change and say why.
+- Never bypass the guard (`--no-verify`) to commit content. If the guard is wrong about a genuine system file, add its path to `git.allow` in `brain.yaml` as part of the same change and say why. If it flags a name that is public on purpose (the maintainer in `LICENSE`, a plugin author), add the name to `git.public_names` in `brain.yaml`, only on the user's yes.
 - A change that improves a note for this company (an objective, a meeting, a person) is content, not a system change: write it in its layer and let the shared folder carry it.
 - Never push, open a pull request, or send a message on your own.

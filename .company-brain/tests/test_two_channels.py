@@ -210,6 +210,35 @@ def test_an_edited_line_keeps_its_example_but_a_new_use_is_checked(repo):
     assert any("[[Platform]]" in p["problem"] for p in problems)
 
 
+@pytest.mark.parametrize("name", ['Notes "draft".md', "Tab\tname.md", "Back\\slash.md"])
+def test_file_names_git_quotes_are_still_scanned(repo, name):
+    (repo / "System" / name).write_text("Ask Dana Smith.\n", encoding="utf-8")
+    git(repo, "add", f"System/{name}")
+    r = cli(repo, "git", "check", "--staged")
+    assert r.returncode == 1 and "Dana Smith" in r.stderr
+
+
+def test_a_longer_word_in_a_removed_line_does_not_pay_for_a_name(repo):
+    doc = repo / "System" / "Skills.md"
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nAsk Dana Smithson.\n", encoding="utf-8")
+    git(repo, "add", "System/Skills.md")
+    git(repo, "commit", "-q", "--no-verify", "-m", "a name that only contains the person's")
+    doc.write_text(doc.read_text(encoding="utf-8").replace("Ask Dana Smithson.", "Ask Dana Smith."), encoding="utf-8")
+    problems = json.loads(cli(repo, "--json", "git", "stage").stdout)["problems"]
+    assert any("Dana Smith'" in p["problem"] for p in problems)
+
+
+def test_public_names_pass_the_name_checks_only(repo):
+    text = (repo / "brain.yaml").read_text(encoding="utf-8").replace("public_names: []", "public_names: [Dana Smith]")
+    (repo / "brain.yaml").write_text(text, encoding="utf-8")
+    doc = repo / "System" / "Skills.md"
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nMaintained by Dana Smith.\n", encoding="utf-8")
+    assert not json.loads(cli(repo, "--json", "git", "stage", check=True).stdout)["problems"]
+    doc.write_text(doc.read_text(encoding="utf-8") + "\nSee Company/Org/People/Dana Smith.md\n", encoding="utf-8")
+    problems = json.loads(cli(repo, "--json", "git", "stage").stdout)["problems"]
+    assert any("path to company content" in p["problem"] for p in problems)
+
+
 @pytest.mark.parametrize("setting", ["diff.noprefix", "diff.mnemonicPrefix"])
 def test_user_diff_settings_cannot_hide_a_file_from_the_scan(repo, setting):
     git(repo, "config", setting, "true")

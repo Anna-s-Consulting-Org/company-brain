@@ -18,3 +18,6 @@ git:
   # dotfiles every brain has). Repository docs are listed here: add a new one (CONTRIBUTING.md, a
   # docs folder) in the same commit as the file. Content paths can never be added.
   allow: [README.md, AGENTS.md, ROADMAP.md, LICENSE, THIRD_PARTY_NOTICES.md]
+  # Names that are public on purpose (a maintainer in LICENSE, a plugin author) and may appear in system
+  # files. Only the person and company name checks skip them; paths and links are still checked.
+  public_names: []
