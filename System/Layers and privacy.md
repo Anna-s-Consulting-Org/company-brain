@@ -16,9 +16,14 @@ This note is the human-readable version of the Company Brain layer model: what i
 |---|---|---|---|
 | Company | `Company/` | the whole company (through the shared folder) | [[Mission]], strategy, company OKRs, plans, roadmap, [[Org Chart]], people profiles, all-hands notes |
 | Team | `Teams/<Team>/` | the whole company, owned by the team (through the shared folder) | team charter, team OKRs, projects, meetings, weekly updates and roll-ups, board, roadmap |
-| Personal | `Personal/` | only you (never synced, never in git) | daily and weekly notes, 1:1s, private goals, drafts, inbox |
+| Personal | `Personal/` | only you (never synced, never in git) | daily and weekly notes, 1:1s, stakeholder notes, private goals, drafts, inbox |
 
 Your identity lives in `Personal/Me.md`; your public profile lives in `Company/Org/People/<Your Name>.md`.
+
+## People: profiles and stakeholder notes
+Everyone's shared profile holds what the company would put on an intranet page: role, team, manager, work email, and the work they do. Stakeholder management stays yours: what a person cares about, how you can help each other, how to work with them, open asks, how strong the relationship is, and how much influence and interest they have go in `Personal/Stakeholders/Stakeholder - <Name>.md`, which only you see and which is never promoted or shared. If any of it lands on a profile, `brain check` and the write hook report it as an error.
+
+People at customers, partners and vendors get a contact card in `Company/Org/Contacts/` with the same limits (role, organisation, work email, who on our side owns the relationship), and each organisation an org page in `Company/Org/Companies/`. [[People Directory]] lists everyone by organisation. Your view of those people stays in your stakeholder notes, like everyone else's. `Personal/Stakeholders/My Stakeholders.md` maps them and lists follow-ups due. A profile's "My notes on them" section is a query over your own Personal folder, so each reader sees only their own notes.
 
 ## The one rule: links point up
 Your personal notes can link to anything. Shared notes can never link to personal notes: for everyone else the link is broken, and its title alone can leak something (a 1:1 title, a draft decision). The layer guard hook warns Claude the moment a shared note breaks this, and `brain check` scans the whole brain.
@@ -44,3 +49,5 @@ The content choice is `sharing.model` in `brain.local.yaml` on each machine. Wha
 
 ## What Claude pulls from your tools
 The weekly and daily skills read calendar, Slack, email, Jira, Drive, and meeting notes only through the connectors you have enabled, and write what they find into your **personal** notes. Nothing from your messages reaches a team or company note unless you approve the team update or a promotion.
+
+One exception: **who works on which project**. When a company-visible record (a Linear or Jira project lead, a GitHub repository's contributors, a Notion project page's owner, a shared meeting) shows that a colleague works on a project, Claude records it on their shared profile with `brain person works-on`, with the source and a confidence. Anything below the brain's threshold (`people.works_on_min_confidence` in `Company/company.yaml`, high by default) is not written; Claude lists it for you to confirm. Evidence that only exists in a DM, an email, a private channel, or a 1:1 never goes on a profile without your yes. Profiles travel through the shared folder like every company note, so a recorded entry reaches teammates when it syncs.

@@ -184,6 +184,24 @@
       "local": ".company-brain/scripts/brain.py",
       "mode": "adapt",
       "commit": "58ca891156088635b4c28615d71a7842a8ca3143"
+    },
+    {
+      "upstream": "scripts/bootstrap_vault.py",
+      "local": "Templates/Person Template.md",
+      "mode": "adapt",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143"
+    },
+    {
+      "upstream": "references/bases/people.base.template",
+      "local": ".company-brain/references/bases/people.base.template",
+      "mode": "copy",
+      "sha256": "c2b7e8d00cf14e70e81505af909a24d8f5df37e55b1571fc8dfaf2a789a45176"
+    },
+    {
+      "upstream": "references/ai-first-rules.md",
+      "local": "Templates/Company Template.md",
+      "mode": "adapt",
+      "commit": "58ca891156088635b4c28615d71a7842a8ca3143"
     }
   ],
   "commands": {

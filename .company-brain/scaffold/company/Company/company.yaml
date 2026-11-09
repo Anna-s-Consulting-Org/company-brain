@@ -6,6 +6,11 @@ company:
   fiscal_year_start: 1          # month the fiscal year starts (1 = calendar quarters)
   timezone: UTC
 
+# People profiles (Company/Org/People). `brain person works-on` records who works on what from
+# connected systems only at or above this confidence: stated | high | medium. Lower is never recorded.
+people:
+  works_on_min_confidence: high
+
 # Shared source mounts (managed by: brain connect <path> --name <Name> --shared).
 # Each teammate recreates them on their machine with: brain connect --sync
 sources: []

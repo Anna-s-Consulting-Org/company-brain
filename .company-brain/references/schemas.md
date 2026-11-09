@@ -36,6 +36,9 @@ Exempt from the universal fields: kanban boards (`kanban-plugin: board` frontmat
 |---|---|---|
 | `me` | `Personal/` | `Me.md` |
 | `person` | `Company/Org/People/` | `<Full Name>.md` |
+| `company` | `Company/Org/Companies/` | `<Organisation name>.md` (a customer, partner, vendor ...) |
+| contact (`type: person`) | `Company/Org/Contacts/` | `<Full Name>.md` (someone at one of them) |
+| `stakeholder` | `Personal/Stakeholders/` | `Stakeholder - <Full Name>.md` (one per person I track) |
 | `team` | `Teams/<Team>/` | `<Team>.md` |
 | `mission` / `vision` / `values` | `Company/` | `Mission.md`, `Vision.md`, `Values.md` |
 | `strategy` | `<L>/Strategy/` | `Strategy - <horizon or name>.md` |
@@ -82,6 +85,9 @@ type: person
 role: "Product Manager"
 team: "[[Platform]]"
 manager: "[[Sam Lee]]"     # drives the org chart
+email: jane@acme.com       # work address; the strongest match in connected systems
+aliases: ["Jen"]           # other names she goes by (Obsidian resolves links by them too)
+handles: ["github:jdoe", "slack:U04ABC", "linear:jane.doe"]   # system:id in connected systems
 location: "TBD"
 start_date: TBD
 timeline:                  # bi-temporal, append-only (see ai-first-rules.md)
@@ -89,8 +95,66 @@ timeline:                  # bi-temporal, append-only (see ai-first-rules.md)
     from: YYYY-MM-DD
     until: present
     learned: YYYY-MM-DD
+works_on:                  # written by `brain person works-on`, append-only history
+  - project: "[[Onboarding revamp]]"   # the project note when one matches (name, aliases, refs), else the name the source uses
+    role: lead             # owner | lead | contributor | reviewer | stakeholder
+    source: "Linear project ONB, https://linear.app/acme/project/onb"
+    confidence: high       # stated | high, or medium where Company/company.yaml people.works_on_min_confidence allows it
+    from: YYYY-MM-DD       # TBD when the source does not say
+    until: present         # or the date the work ended
+    learned: YYYY-MM-DD    # when the brain first recorded it
+    checked: YYYY-MM-DD    # when a source last confirmed it
 ```
-A shared profile holds only facts the person would be comfortable seeing on the company intranet. Impressions, feedback, and 1:1 content belong in `Personal/1-1s/`.
+Body sections: `## Role and responsibilities`, `## Works on` (a generated `works-on` block, see below), `## Reports`, `## Shared meetings`, `## My notes on them` (a Dataview query over the reader's own Personal/ notes, so each reader sees only their own; the shared file holds the query, never the notes).
+
+Not taken from the AI-first `type: person` schema in `ai-first-rules.md`, which was written for a one-person vault: `relationship`, `last-interaction`, and the preamble's relationship strength and last interaction are stakeholder fields and go only in `Personal/Stakeholders/`; `related-projects` is replaced by `works_on:`; `company` is not needed. The profile preamble says what the profile is, not how the reader relates to the person.
+
+A shared profile holds only facts the person would be comfortable seeing on the company intranet. Stakeholder management (what they care about, how we can help each other, how to work with them, open asks, relationship, influence, interest, last interaction, follow-up), impressions, feedback, and 1:1 content belong in `Personal/Stakeholders/` and `Personal/1-1s/`. `brain check`, the layer guard, and the brain MCP server's write tools refuse any of those sections or fields on a profile (in any spelling: `last-interaction`, `relationship_strength`, `What She Cares About:`), and the heading How we can help each other in any shared note; `brain promote` strips them.
+
+`## Works on` is rebuilt by `brain refresh` from shared notes only: project `owner:`, optional `contributors:` and `stakeholders:` lists, the project's `## People` table, objective owners, key result `[owner:: ]` fields, and the profile's `works_on:` entries. One role per person per project is open at a time: a stronger role closes the open entry, a weaker signal never downgrades it (`--replace` does, when the role really changed), and `--ended` closes it. Entries are never deleted.
+
+### `company` (an organisation we work with, company layer)
+```yaml
+type: company              # upstream's company entity, plus kind and owner
+kind: customer             # customer | partner | vendor | prospect | investor | other
+status: active             # active | former
+owner: "[[Jane Doe]]"      # who on our side owns the relationship
+industry: TBD
+website-url: TBD
+domains: ["globex.com"]    # email domains, to recognise its people in connected systems
+aliases: ["Globex Corp"]
+refs: ["hubspot:12345"]    # ids in other systems (CRM, billing)
+```
+Body: `## What they are to us` (business facts with source and date), `## People` (a generated `org-people` block: owner on our side and its contacts), `## Projects and meetings` (Dataview over shared notes linking here), `## Notes`. Our own company is not a `company` note: it is the `Company/` layer, with [[Organization]] as its org page. Org pages describe organisations, so mutual value with a partner (how we help each other) is a business fact here; the stakeholder rule is about individuals.
+
+### contact (`type: person` in `Company/Org/Contacts/`)
+```yaml
+type: person
+tags: [person, contact]
+company: "[[Globex]]"      # its org page
+role: "VP Engineering"
+owner: "[[Jane Doe]]"      # who on our side owns the relationship
+email: jane@globex.com
+aliases: []
+handles: []
+timeline: [...]            # role and company changes, bi-temporal
+```
+Business-card facts only. The shared-profile rules apply: no stakeholder fields or sections (`brain check` and the guards refuse them). A contact is not a profile: it is never in `Company/Org/People/`, so the org chart, team pages, `works_on:` and the Organization map ignore it.
+
+### `people-directory` (generated, `Company/Org/People Directory.md`)
+Everyone by organisation: our people, then each kind of org page with its contacts, then contacts with no org page. Rebuilt by `brain refresh`. `Company/Org/People.base` lists the same people as a live Obsidian table; it is built from `.company-brain/references/bases/people.base.template` (vendored from obsidian-second-brain) with Company Brain's overlay (both people folders, an Organization column, Team), and an edit made to it in Obsidian is kept.
+
+### `stakeholder` (personal: my view of a person)
+```yaml
+type: stakeholder
+person: "[[Sam Lee]]"      # the shared profile, or the plain name for someone outside the company
+relationship: medium       # weak | medium | strong (upstream obsidian-second-brain's relationship strength)
+influence: high            # high | medium | low: how much they shape the outcome of my work
+interest: medium           # high | medium | low: how much my work affects them
+last_interaction: YYYY-MM-DD
+follow_up: YYYY-MM-DD      # the next agreed touchpoint, or TBD
+```
+Body sections: `## What they care about`, `## How we can help each other`, `## How to work with them`, `## Open asks`, `## Notes`, `## Interactions` (Dataview), `## Private`. Never promoted. `Personal/Stakeholders/My Stakeholders.md` maps them by influence and interest (manage closely, keep satisfied, keep informed, monitor) and lists follow-ups due and high-influence people going quiet.
 
 ### `team`
 ```yaml
@@ -214,7 +278,12 @@ effort: 3
 roadmap: now               # now | next | later | none
 start: YYYY-MM-DD
 due: YYYY-MM-DD
+refs: ["linear:ONB", "https://github.com/acme/onboarding"]   # optional: ids and URLs in other systems
+aliases: ["Onboarding v2"]                                  # optional: other names the project goes by
+contributors: ["[[Sam Lee]]"]                               # optional; the `## People` table works too
+stakeholders: ["[[Jane Doe]]"]                              # optional
 ```
+`refs:` and `aliases:` are how work recorded from connected systems (`brain person works-on`) finds the project note. People named in `owner:`, `contributors:`, `stakeholders:`, or the `## People` table appear in their profile's Works on block.
 
 ### `meeting`
 ```yaml

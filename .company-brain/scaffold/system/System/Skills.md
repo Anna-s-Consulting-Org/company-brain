@@ -26,7 +26,7 @@ This note is the catalog of Company Brain skills: what each does and where it wr
 | `/company-brain:ost` | opportunity solution trees | `<layer>/Discovery/` |
 | `/company-brain:prioritize` | effort-impact matrix and RICE | scores on solutions and projects |
 | `/company-brain:roadmap` | Now, Next, Later roadmap | roadmap boards |
-| `/company-brain:org` | people, teams, org chart | `Company/Org/People/`, `Teams/` |
+| `/company-brain:org` | people profiles, org pages of customers, partners and vendors with their contacts, the People Directory, who works on what (from notes and connected systems), stakeholder notes and map, teams, org chart | `Company/Org/People/`, `Company/Org/Companies/`, `Company/Org/Contacts/`, `Personal/Stakeholders/`, `Teams/` |
 | `/company-brain:project` | projects and status | `<layer>/Projects/`, boards |
 | `/company-brain:meeting` | meeting notes, 1:1s, actions and decisions | `<layer>/Meetings/`, `Personal/1-1s/` |
 | `/company-brain:decide` | decision records | `<layer>/Decisions/` |

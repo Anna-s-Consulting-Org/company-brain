@@ -26,6 +26,9 @@ A conversation often holds work for several skills at once: a decision, three ac
    | project news (status, milestone, risk) | the project's status log | `project` skill |
    | a meeting that happened | meeting note (1:1s stay in `Personal/1-1s/`) | `meeting` skill |
    | person fact (role, team, manager, start date) | the shared profile in `Company/Org/People/`, as a `timeline:` entry | `org` skill |
+   | who works on which project (a lead, owner, contributor) | the person's profile, `works_on:`, only at or above the brain's confidence threshold | `org` skill (works-on rules: `brain person works-on`) |
+   | what someone cares about, how we can help each other, an ask, a follow-up | my stakeholder note in `Personal/Stakeholders/`, never a shared note | `org` skill (stakeholder) |
+   | a person at a customer, partner or vendor (role, organisation) | their contact card in `Company/Org/Contacts/` and the org page, never a profile | `org` skill |
    | idea | personal idea note | `capture` skill |
    | learning, reference, research finding | knowledge note, `Personal/Notes/` unless shared | `ingest` skill (note format) |
    | customer evidence (a pain, a quote, a request) | the matching `OPP - ` note's evidence, after asking | `ost` skill |

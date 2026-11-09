@@ -21,6 +21,7 @@ effort:
 roadmap: none
 start: <% tp.date.now("YYYY-MM-DD") %>
 due: TBD
+refs: []
 ---
 
 # <% tp.file.title %>
@@ -41,6 +42,15 @@ TBD. The outcome this project delivers and how we will know it worked.
 | Owner | <% owner %> |
 | Contributors | TBD |
 | Stakeholders | TBD |
+
+People profiles that record work on this project (from connected systems, via `brain person works-on`):
+```dataview
+TABLE WITHOUT ID file.link AS "Person", w.role AS "Role", w.confidence AS "Confidence", w.checked AS "As of"
+FROM "Company/Org/People"
+FLATTEN works_on AS w
+WHERE type = "person" AND (!w.until OR w.until = "present")
+  AND (w.project = this.file.link OR string(w.project) = "[[" + this.file.name + "]]" OR w.project = this.file.name)
+```
 
 ## Plan and milestones
 | Milestone | Date | Status |

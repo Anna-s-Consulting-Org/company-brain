@@ -11,7 +11,7 @@ The upstream commit these files are synced with is recorded in `.company-brain/u
 | `.company-brain/references/freshness-policy.md` | `references/freshness-policy.md` | none |
 | `.company-brain/references/propagation.md` | `references/write-rules.md` | rewritten for layers |
 | `.company-brain/hooks/validate-ai-first.sh` | `hooks/validate-ai-first.sh` | brain found by `brain.yaml` marker, Company Brain config dir, kanban and engine folders skipped |
-| `.company-brain/mcp/vault/server.py`, `vault_ops.py` | `integrations/obsidian-mcp-server/` | tools renamed `brain_*`, `COMPANY_BRAIN_PATH`, captures in `Personal/Inbox`, skills from `skills/`, two new tools, orphan check also exempts `CLAUDE.md` |
+| `.company-brain/mcp/vault/server.py`, `vault_ops.py` | `integrations/obsidian-mcp-server/` | tools renamed `brain_*`, `COMPANY_BRAIN_PATH`, captures in `Personal/Inbox`, skills from `skills/`, two new tools, orphan check also exempts `CLAUDE.md`, write and move tools run the layer guard and undo a write that breaks it |
 | `.company-brain/scripts/osb_env.py` | `scripts/osb_env.py` | config dir and variable names |
 | `.company-brain/scripts/freshness_lint.py` | `scripts/freshness_lint.py` | none (wired in by `brain.py`, `hooks/freshness_guard.py`) |
 | `.company-brain/scripts/vault_scan.py` | `scripts/vault_scan.py` | none (imported by the freshness lint) |
@@ -24,6 +24,9 @@ The upstream commit these files are synced with is recorded in `.company-brain/u
 | `.company-brain/scripts/crew.py` | `scripts/crew.py` | none (the `crew` skill always passes `--dir`) |
 | `.company-brain/scripts/vault_health.py`, `note_io.py`, `sweep_non_ascii.py` | `scripts/` of the same names | none (imported by the scripts above) |
 | `brain search` in `.company-brain/scripts/brain.py` | `scripts/vault_search.py` | ported as a `brain` subcommand against our `vault_ops` |
+| `Templates/Person Template.md`, `Templates/Stakeholder Template.md` | the person template in `scripts/bootstrap_vault.py` (What They Care About, How We Can Help Each Other, Notes, Interactions; relationship strength, last interaction, follow-up, contact email) and `type: person` in `references/ai-first-rules.md` | the relationship sections live only in the personal stakeholder note, the shared profile keeps intranet facts; our own text, not a copy |
+| `.company-brain/references/bases/people.base.template` | `references/bases/people.base.template` | none (`brain refresh` builds `Company/Org/People.base` from it with Company Brain's folders and columns) |
+| `Templates/Company Template.md`, `Templates/Contact Template.md` | `type: company` and `type: person` in `references/ai-first-rules.md` | kind and owner on org pages; contacts kept apart from people profiles; our own text |
 | `.company-brain/tests/test_{checkin,verify_quotes,crew,document_to_pdf,ingest_batch,vault_health_precision,vault_health_unicode,user_excludes}.py`, `_bash.py` | `tests/` of the same names | none (a few cases that assume upstream's layout are skipped by name in `conftest.py`) |
 | `.company-brain/skills/{checkin,reconcile,crew}/SKILL.md`, the directory and Word sections of `skills/ingest` | `commands/obsidian-checkin.md`, `obsidian-reconcile.md`, `crew.md`, `obsidian-ingest.md` | rewritten for layers, owners and privacy; these are our own text, not copies |
 

@@ -99,11 +99,8 @@ def brain_save_note(
     operation-log file written), and `post_write` when OBSIDIAN_POST_WRITE_CMD
     is set. "saved" alone never implies the rest happened.
     """
-    return json.dumps(
-        vault_ops.save_note(
-            title, content, note_type=type, tags=tags, path=path, summary=summary
-        )
-    )
+    return json.dumps(vault_ops.guarded_write(path, lambda: vault_ops.save_note(
+        title, content, note_type=type, tags=tags, path=path, summary=summary)))
 
 
 @mcp.tool()
@@ -138,9 +135,8 @@ def brain_update_note(
     archiving than to labelling, so only set it when the note genuinely no
     longer holds. The response echoes a `faded` field when it happens.
     """
-    return json.dumps(
-        vault_ops.update_note(path, append=append, heading=heading, set_fields=set_fields)
-    )
+    return json.dumps(vault_ops.guarded_write(path, lambda: vault_ops.update_note(
+        path, append=append, heading=heading, set_fields=set_fields)))
 
 
 @mcp.tool()
@@ -150,7 +146,7 @@ def brain_replace_text(path: str, old_text: str, new_text: str) -> str:
     The old block must occur exactly once. The operation is atomic and refuses
     protected directories, path escapes, missing anchors, and ambiguous matches.
     """
-    return json.dumps(vault_ops.replace_text(path, old_text, new_text))
+    return json.dumps(vault_ops.guarded_write(path, lambda: vault_ops.replace_text(path, old_text, new_text)))
 
 
 @mcp.tool()
@@ -160,7 +156,7 @@ def brain_move_note(source: str, destination: str) -> str:
     Use to graduate Inbox captures into canonical entity/project folders. The
     result reminds callers to repair any path-qualified links to the old path.
     """
-    return json.dumps(vault_ops.move_note(source, destination))
+    return json.dumps(vault_ops.guarded_move(source, destination))
 
 
 @mcp.tool()

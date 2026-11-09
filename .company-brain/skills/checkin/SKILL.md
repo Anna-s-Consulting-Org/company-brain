@@ -15,12 +15,12 @@ A fact check compares notes with other notes. News that never reached the brain 
 
 ## Which notes
 - Only notes **I own** (`owner:` is me), plus my own person profile and notes of the team I lead. Never ask me about, or answer for, a note another person owns; that is their check-in.
-- Types: `checkin pick --types person,project,team --max-open 20`. The helper does not report the owner, so read each candidate and keep at most 3 that are mine. `--max-open 20` only widens the pool you filter; never open more than 3 cards.
-- Facts to ask about are **work facts**: status, owner, scope, dates, role, team, manager. Never ask for or record health, compensation, performance or personal-life facts in a shared note (`CLAUDE.md` section 7).
+- Types: `checkin pick --types person,project,team,company --max-open 20` (company: org pages whose `owner:` is me). The helper does not report the owner, so read each candidate and keep at most 3 that are mine. `--max-open 20` only widens the pool you filter; never open more than 3 cards.
+- Facts to ask about are **work facts**: status, owner, scope, dates, role, team, manager, and the work a profile lists under Works on. Never ask for or record health, compensation, performance or personal-life facts in a shared note (`CLAUDE.md` section 7).
 - `checkin: never` in a note's frontmatter keeps it out for good. `checkin: priority` moves it to the front.
 
 ## Mode: ask (once a day)
-1. `checkin pick --types person,project,team --max-open 20`. It returns notes whose facts are older than 14 days (`--days N` to change), with an excerpt. Skip closed statuses and notes I do not own.
+1. `checkin pick --types person,project,team,company --max-open 20`. It returns notes whose facts are older than 14 days (`--days N` to change), with an excerpt. Skip closed statuses and notes I do not own.
 2. For each of my notes (at most 3), read the note itself (the excerpt is a hint, not the source) and write **1 to 3 facts**: one short line each, under 140 characters, taken from the note only. Never add, guess or round a fact. Prefer facts that can change.
 3. Open each card: `checkin ask --note "<path>" --fact "..." --fact "..."`.
 4. `checkin message` and send its output to me **verbatim**, as one message. No commentary, no second message.

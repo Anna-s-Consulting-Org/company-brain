@@ -22,6 +22,10 @@
       "template": "Templates/One-on-One Template.md"
     },
     {
+      "folder": "Personal/Stakeholders",
+      "template": "Templates/Stakeholder Template.md"
+    },
+    {
       "folder": "Personal/Goals",
       "template": "Templates/Objective Template.md"
     },
@@ -32,6 +36,14 @@
     {
       "folder": "Company/Org/People",
       "template": "Templates/Person Template.md"
+    },
+    {
+      "folder": "Company/Org/Companies",
+      "template": "Templates/Company Template.md"
+    },
+    {
+      "folder": "Company/Org/Contacts",
+      "template": "Templates/Contact Template.md"
     },
     {
       "folder": "Company/Projects",

@@ -9,10 +9,11 @@ layer: company
 # Organization
 
 ## For future agent
-This is the organization hub: the generated org chart, the list of teams, and every shared people profile. Profiles hold intranet-level facts only; private impressions live in each person's own Personal/1-1s notes.
+This is the organization hub: the generated org chart, the list of teams, every shared people profile, and the generated map of who works on what. Profiles hold intranet-level facts only; private impressions and stakeholder notes live in each person's own Personal/Stakeholders and Personal/1-1s notes. The Who works on what block is rebuilt by `brain refresh` from project and objective notes and from work recorded on profiles from connected systems; edit those, not the block.
 
 - [[Org Chart]] (generated from `manager:` and `team:` on profiles)
 - [[Teams]]
+- [[People Directory]] (generated: everyone we work with, by organisation; our people here, customers, partners and vendors from `Company/Org/Companies/` with their contacts from `Company/Org/Contacts/`). `People.base` in this folder is the same list as a live Obsidian table.
 
 ## People
 ```dataview
@@ -28,4 +29,9 @@ LIST FROM "Company/Org/People"
 WHERE type = "person" AND (role = "TBD" OR !role OR !team OR team = "TBD")
 ```
 
-Add or update people with `/company-brain:org`.
+## Who works on what
+<!-- brain:auto:start work-map -->
+No people yet. Add profiles with `/company-brain:org` or `brain person add`.
+<!-- brain:auto:end work-map -->
+
+Add or update people with `/company-brain:org`. It also records who works on what from connected systems (project trackers, code hosts, shared docs) when the match is confident.

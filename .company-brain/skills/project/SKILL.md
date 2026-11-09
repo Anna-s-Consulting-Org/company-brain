@@ -16,9 +16,9 @@ Schema: `type: project`. Folder: `Company/Projects/`, `Teams/<Team>/Projects/`, 
 
 ## Create
 1. Layer: team by default (my team) if it is team work; company for cross-team initiatives; personal for my own side work.
-2. Ask: name, owner, goal, the KR(s) it serves (offer the layer's current KRs), the solution it delivers (if it came from discovery), due date. Unknowns stay TBD.
-3. `brain new project --layer <l> [--team T] --title "<Name>" --set owner="[[<Owner>]]" --set 'okrs=["[[<objective>#^krN]]"]' [--set solution="[[SOL - ...]]"] [--set due=<date>]`.
-4. Fill goal, scope, people, milestones.
+2. Ask: name, owner, goal, the KR(s) it serves (offer the layer's current KRs), the solution it delivers (if it came from discovery), due date, and its ids in other systems (a Linear or Jira project key, a repository, a Notion page URL). Unknowns stay TBD.
+3. `brain new project --layer <l> [--team T] --title "<Name>" --set owner="[[<Owner>]]" --set 'okrs=["[[<objective>#^krN]]"]' [--set solution="[[SOL - ...]]"] [--set due=<date>] [--set 'refs=["linear:ONB", "https://github.com/acme/onboarding"]']`. `refs:` and `aliases:` let work recorded from connected systems link to this note.
+4. Fill goal, scope, milestones, and the `## People` table with `[[links]]` (owner, contributors, stakeholders): `brain refresh` lists the project on each person's profile from it. A project created from an entry under "Seen in connected systems, no project note yet" on `Organization.md` gets that system's id in `refs:`.
 5. Propagate: a card on the layer board (`<Team> Board.md` or `My Board.md`) in Backlog or In progress; if `roadmap:` is set, the roadmap card; the solution's `project:` field.
 
 ## Update

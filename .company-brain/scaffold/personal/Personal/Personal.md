@@ -9,11 +9,11 @@ layer: personal
 # Personal
 
 ## For future agent
-This is the personal dashboard of {{ME}}: today, this week, goals, the personal board, and 1:1s. Everything under Personal/ is local-only and gitignored. Shared notes never link here; this note links up freely.
+This is the personal dashboard of {{ME}}: today, this week, goals, the personal board, 1:1s, and stakeholders. Everything under Personal/ is local-only and gitignored. Shared notes never link here; this note links up freely.
 
 ## Now
 - Today: run `/company-brain:daily`; this week: `/company-brain:weekly`
-- Board: [[My Board]] | Identity: [[Me]]
+- Board: [[My Board]] | Identity: [[Me]] | Stakeholders: [[My Stakeholders]]
 - Team: [[{{FIRST_TEAM}}]] | Company: [[Company|{{COMPANY}}]]
 
 ## Recent daily notes
@@ -43,4 +43,12 @@ WHERE type = "objective" AND contains(string(L.owner), "{{ME}}")
 TABLE person, cadence
 FROM "Personal/1-1s"
 WHERE type = "one-on-one"
+```
+
+## Stakeholder follow-ups due
+```dataview
+TABLE WITHOUT ID file.link AS "Stakeholder", follow_up AS "Follow up", relationship
+FROM "Personal/Stakeholders"
+WHERE type = "stakeholder" AND typeof(follow_up) = "date" AND follow_up <= date(today)
+SORT follow_up ASC
 ```

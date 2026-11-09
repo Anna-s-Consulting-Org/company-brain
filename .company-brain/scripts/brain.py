@@ -85,7 +85,7 @@ def _scalar(v: str):
     if v == "":
         return None
     if v[0] == '"' and v.endswith('"') and len(v) >= 2:
-        return v[1:-1].replace('\\"', '"')
+        return re.sub(r'\\(["\\])', r"\1", v[1:-1])
     if v[0] == "'" and v.endswith("'") and len(v) >= 2:
         return v[1:-1].replace("''", "'")
     if v.startswith("[[") and v.endswith("]]"):
@@ -180,7 +180,7 @@ def yaml_value(v) -> str:
     s = str(v)
     if re.fullmatch(r"[A-Za-z0-9_./ -]+", s) and not re.fullmatch(r"(true|false|yes|no|null|-?\d+(\.\d+)?)", s.lower()) and not s.startswith(("-", " ")):
         return s
-    return '"' + s.replace('"', '\\"') + '"'
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 # ---------------------------------------------------------------------------
@@ -512,22 +512,9 @@ def render_template(text: str, title: str, values: dict, day: dt.date = TODAY) -
 
 def set_frontmatter(text: str, values: dict) -> str:
     """Set top-level scalar/flat-list keys in a note's frontmatter, keeping the rest."""
-    m = FM_RE.match(text)
-    if not m:
-        return text
-    lines = m.group(1).split("\n")
     for key, val in values.items():
-        rendered = f"{key}: {yaml_value(val)}"
-        for i, line in enumerate(lines):
-            if re.match(rf"^{re.escape(key)}\s*:", line):
-                j = i + 1
-                while j < len(lines) and (lines[j].startswith((" ", "-")) and not re.match(r"^[A-Za-z_]", lines[j])):
-                    j += 1
-                lines[i:j] = [rendered]
-                break
-        else:
-            lines.append(rendered)
-    return "---\n" + "\n".join(lines) + "\n---\n" + text[m.end():]
+        text = set_frontmatter_lines(text, key, [f"{key}: {yaml_value(val)}"])
+    return text
 
 
 def scaffold_ctx(root: Path, extra: dict | None = None) -> dict:
@@ -1341,6 +1328,9 @@ KINDS = {
     "decision": ("Decision Template.md", "company", "Decisions"),
     "knowledge": ("Knowledge Note Template.md", "personal", "Knowledge"),
     "person": ("Person Template.md", "company", "Org/People"),
+    "company": ("Company Template.md", "company", "Org/Companies"),   # an organisation we work with
+    "contact": ("Contact Template.md", "company", "Org/Contacts"),    # a person at one of them
+    "stakeholder": ("Stakeholder Template.md", "personal", "Stakeholders"),
     "one-on-one": ("One-on-One Template.md", "personal", "1-1s"),
     "daily": ("Daily Note Template.md", "personal", "Daily"),
     "weekly": ("Weekly Note Template.md", "personal", "Weekly"),
@@ -1382,7 +1372,8 @@ def note_name(kind: str, title: str, v: dict, who: dict) -> str:
         return f"{v['team']} - {base}" if v["layer"] == "team" else base
     prefixes = {"outcome": "OUT - ", "opportunity": "OPP - ", "solution": "SOL - ",
                 "experiment": "EXP - ", "vpc": "VPC - ", "bmc": "BMC - ",
-                "strategy": "Strategy - ", "playing-to-win": "Strategy - ", "one-on-one": "1-1 - "}
+                "strategy": "Strategy - ", "playing-to-win": "Strategy - ", "one-on-one": "1-1 - ",
+                "stakeholder": "Stakeholder - "}
     if kind in prefixes:
         return prefixes[kind] + title
     if kind == "meeting":
@@ -1412,8 +1403,15 @@ def create_note(root: Path, kind: str, title: str, layer: str | None = None, tea
     values = dict(values or {})
     if layer == "personal":
         sub = PERSONAL_SUBFOLDER.get(kind, sub)
-    if kind == "person":
-        layer, team, sub = "company", None, "Org/People"
+    if kind in ("person", "company", "contact"):  # the org, its people and its partners are company-layer
+        layer, team, sub = "company", None, KINDS[kind][2]
+    if kind == "stakeholder":
+        # my view of a person is always personal; the shared profile is the person note
+        layer, team, sub = "personal", None, "Stakeholders"
+        if not values.get("person"):
+            prof = resolve_person(scan(root), title, pool="all")
+            values["person"] = f"[[{prof.name}]]" if prof else title
+            title = prof.name if prof else title  # Stakeholder - <Full Name>, even when called by an alias
     folder = layer_root(root, layer, team) / sub
     route = dict(values, layer=layer, team=team)
     stem = name or note_name(kind, title, route, who)
@@ -1423,7 +1421,7 @@ def create_note(root: Path, kind: str, title: str, layer: str | None = None, tea
     existing = [n for n in scan(root) if n.name.lower() == stem.lower()]
     if existing:
         return {"created": False, "path": existing[0].rel, "reason": "a note with this name already exists"}
-    tpl = root / "Templates" / tpl_file
+    tpl = template_file(root, tpl_file)
     if not tpl.is_file():
         raise SystemExit(f"error: template not found: Templates/{tpl_file}")
     prompt_values = {k: v for k, v in values.items() if v is not None}
@@ -1455,6 +1453,12 @@ def create_note(root: Path, kind: str, title: str, layer: str | None = None, tea
     return {"created": True, "path": target.relative_to(root).as_posix()}
 
 
+def template_file(root: Path, name: str) -> Path:
+    """The brain's own template, else the engine's shipped copy (a brain set up before the template existed)."""
+    own = root / "Templates" / name
+    return own if own.is_file() else SCAFFOLD / "system" / "Templates" / name
+
+
 def append_log(root: Path, line: str) -> None:
     try:
         log = root / "log.md"
@@ -1472,14 +1476,20 @@ def append_log(root: Path, line: str) -> None:
 # ---------------------------------------------------------------------------
 
 PERSONAL_ONLY_FIELDS = ("energy", "mood", "promoted_to")
-PERSONAL_ONLY_KINDS = ("daily", "weekly", "one-on-one")
+PERSONAL_ONLY_KINDS = ("daily", "weekly", "one-on-one", "stakeholder")
+# note types that live only in Personal/; one in a shared folder is an error in brain check
+PERSONAL_ONLY_TYPES = ("me", "daily", "weekly", "one-on-one", "stakeholder")
 TEAM_ONLY_KINDS = ("team-update", "team-weekly")
 NOT_PROMOTABLE = {
     "me": "the identity record stays in Personal/",
     "daily": "daily notes are not shared; promote the meeting, decision, or knowledge note that came out of the day",
     "one-on-one": "1:1 notes stay in Personal/; promote a decision or meeting note instead",
+    "stakeholder": "stakeholder notes are my view of a person and stay in Personal/; only role, team, manager, "
+                   "contact, and work facts belong on the shared profile (the org skill)",
     "objective": "a personal goal becomes a team objective through the okr skill, with the team lead",
     "person": "people profiles already live in Company/Org/People",
+    "company": "org pages already live in Company/Org/Companies",
+    "contact": "contact cards already live in Company/Org/Contacts",
 }
 TYPE_KIND = {"plan": "quarterly-plan"}
 UPDATE_SECTIONS = {"highlights": "Highlights", "kr progress": "KR progress",
@@ -1516,18 +1526,30 @@ def _section_span(lines, title_re: str, level: int = 2):
     return None
 
 
-def drop_private(body: str):
-    """Remove every `# Private` / `## Private` section (to the next heading of the same or higher level)."""
+def _drop_sections(body: str, match):
+    """Remove every section whose heading satisfies match(level, title), to the next heading of the
+    same or higher level. Returns (body, [titles removed])."""
     lines = body.split("\n")
     heads = _headings(lines)
-    drop = set()
+    drop, titles = set(), []
     for k, (i, lvl, title) in enumerate(heads):
-        if lvl <= 2 and title.lower() == "private":
+        if match(lvl, title) and i not in drop:
             end = next((j for j, l2, _ in heads[k + 1:] if l2 <= lvl), len(lines))
             drop.update(range(i, end))
-    count = sum(1 for i, lvl, t in heads if lvl <= 2 and t.lower() == "private")
+            titles.append(title)
     kept = [l for i, l in enumerate(lines) if i not in drop]
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).rstrip() + "\n", count
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).rstrip() + "\n", titles
+
+
+def drop_private(body: str):
+    """Remove every `# Private` / `## Private` section (to the next heading of the same or higher level)."""
+    body, titles = _drop_sections(body, lambda lvl, t: lvl <= 2 and t.lower() == "private")
+    return body, len(titles)
+
+
+def drop_stakeholder(body: str):
+    """Remove stakeholder sections (what they care about, how we can help each other, ...): they stay personal."""
+    return _drop_sections(body, lambda lvl, t: bool(STAKEHOLDER_HEADING.match(_heading_key(t))))
 
 
 def unlink_personal(text: str, idx: dict):
@@ -1599,6 +1621,7 @@ def _team_update_from_weekly(root: Path, src: Note, team: str, who: dict, name: 
     if not span:
         raise SystemExit(f"error: {src.rel} has no `## Team update` section; draft it with the weekly skill first")
     draft, _ = drop_private("\n".join(lines[span[0] + 1:span[1]]))
+    draft = drop_stakeholder(draft)[0]
     sections, current = {}, None
     for line in draft.split("\n"):
         lm = re.match(r"^\s*[-*]\s+(Highlights|KR progress|Next week|Help needed)\s*:\s*(.*)$", line, re.I)
@@ -1660,7 +1683,7 @@ def promote(root: Path, ref: str, to: str, team: str | None = None, kind: str | 
     else:
         team = None
     src_text = src.text.lstrip("\ufeff").replace("\r\n", "\n")
-    removed = {"private_sections": 0, "sections": [], "personal_links": [], "fields": []}
+    removed = {"private_sections": 0, "sections": [], "personal_links": [], "fields": [], "stakeholder": []}
 
     if kind == "team-update" and ntype == "weekly":
         res, removed["sections"] = _team_update_from_weekly(root, src, team, who, name)
@@ -1671,7 +1694,10 @@ def promote(root: Path, ref: str, to: str, team: str | None = None, kind: str | 
     else:
         head, body = _split_head(src_text)
         body, removed["private_sections"] = drop_private(body)
-        text, dropped = drop_frontmatter_keys(head + body, PERSONAL_ONLY_FIELDS + (("team",) if to == "company" else ()))
+        body, removed["stakeholder"] = drop_stakeholder(body)
+        stake_keys = tuple(k for k in src.fm if is_stakeholder_field(k))
+        text, dropped = drop_frontmatter_keys(head + body, PERSONAL_ONLY_FIELDS + stake_keys
+                                              + (("team",) if to == "company" else ()))
         removed["fields"] = [d for d in dropped if d != "team"]
         fm_set = {"layer": to}
         if to == "team":
@@ -2071,6 +2097,628 @@ def render_org_chart(notes) -> str:
 
 
 # ---------------------------------------------------------------------------
+# People: identity matching and who works on what
+# ---------------------------------------------------------------------------
+
+PEOPLE_DIR = "Company/Org/People/"
+WORK_ROLES = ("owner", "lead", "contributor", "reviewer", "stakeholder")  # strongest first
+ROLE_RANK = {r: len(WORK_ROLES) - i for i, r in enumerate(WORK_ROLES)}
+# confidence words from references/ai-first-rules.md, ranked; low and speculation never reach a profile
+CONFIDENCE_RANK = {"speculation": 0, "low": 0, "medium": 1, "high": 2, "stated": 3}
+THRESHOLDS = ("medium", "high", "stated")
+OPEN_UNTIL = ("", "present", "none", "tbd")
+WORKS_ON_KEY = "works-on"
+WORK_MAP_KEY = "work-map"
+WORKS_ON_EMPTY = ("Nothing recorded yet. This list fills on the next `brain refresh` from the owner field and the "
+                  "`## People` table of project notes, objective and key result owners, and work recorded from "
+                  "connected systems with `brain person works-on`.")
+# live in Obsidian between refreshes: owners only, matched by link rather than by substring
+LIVE_WORKS_ON = ("Live in Obsidian (owners only; the list above adds contributors and connected systems on `brain refresh`):\n"
+                 "```dataview\nLIST FROM \"Company\" OR \"Teams\"\n"
+                 "WHERE (type = \"project\" OR type = \"objective\")\n"
+                 "  AND (contains(flat(list(owner)), this.file.link) OR contains(string(owner), \"[[\" + this.file.name + \"]]\"))\n```")
+# the Dataview block profiles carried before `Works on` became a generated block
+LEGACY_WORKS_ON = re.compile(r"```dataview[ \t]*\n[^`]*?type = \"project\"[^`]*?contains\(string\(owner\), this\.file\.name\)[^`]*?```\n?")
+URL_RE = re.compile(r"https?://\S+")
+
+
+def _norm(s) -> str:
+    return re.sub(r"\s+", " ", str(s or "")).strip().lower()
+
+
+def _ref_key(ref) -> str:
+    """'[[Jane Doe|Jane]]' -> 'jane doe'; plain names, emails and handles are only normalized."""
+    return _norm(link_target(ref) if "[[" in str(ref) else ref)
+
+
+# Stakeholder management is my view of a person and stays in Personal/Stakeholders/; a shared profile
+# carrying any of it is an error in brain check and the layer guard
+STAKEHOLDER_FIELDS = ("relationship", "influence", "interest", "last_interaction", "follow_up")  # key prefixes
+STAKEHOLDER_SECTIONS = ("what they care about", "how we can help each other", "how to work with them", "open asks")
+# headings compared lowercase with punctuation dropped: "What She Cares About:", "How we help each other"
+STAKEHOLDER_HEADING = re.compile(r"^(what \w+ cares? about|how (we|i) (can )?help each other|how to work with \w+|"
+                                 r"open asks?|relationships?|influence|interest)\b")
+RELATIONAL_HEADING = re.compile(r"^how (we|i) (can )?help each other\b")  # checked in every shared note
+STAKEHOLDER_PROSE = re.compile(r"\brelationship strength\b|\blast interaction\s*:", re.I)  # the AI-first preamble
+
+
+def _heading_key(title: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", title.lower())).strip()
+
+
+def is_stakeholder_field(key) -> bool:
+    """relationship, Relationship, relationship_strength, last-interaction, follow_up_date ..."""
+    return str(key).strip().lower().replace("-", "_").startswith(STAKEHOLDER_FIELDS)
+
+
+def is_profile(n: Note) -> bool:
+    return n.type == "person" or n.rel.startswith(PEOPLE_DIR)
+
+
+def people_names(root: Path) -> set:
+    """Lowercase full names of colleagues and contacts, from file names only."""
+    return {p.stem.lower() for d in (PEOPLE_DIR, CONTACTS_DIR) if (root / d).is_dir() for p in (root / d).glob("*.md")}
+
+
+def org_stakeholder_leaks(n: Note, people: set | None = None) -> list:
+    """On an org page, what the two organisations do for each other is a business fact; relationship prose,
+    or a stakeholder section that names one of its people or ours, is stakeholder content about a person."""
+    if people is None:
+        people = people_names(n.path.parents[len(Path(n.rel).parts) - 1])
+    found = ["relationship strength or last interaction in the text"] if STAKEHOLDER_PROSE.search(strip_code(n.body)) else []
+    lines = strip_code(n.body).split("\n")
+    heads = _headings(lines)
+    for k, (i, lvl, title) in enumerate(heads):
+        if not STAKEHOLDER_HEADING.match(_heading_key(title)):
+            continue
+        end = next((j for j, l2, _ in heads[k + 1:] if l2 <= lvl), len(lines))
+        for line in lines[i + 1:end]:
+            linked = {m.group(2).strip().split("/")[-1].lower() for m in LINK_RE.finditer(line)}
+            low = line.lower()
+            hit = next((x for x in sorted(people) if x in linked or re.search(rf"(?<![\w]){re.escape(x)}(?![\w])", low)), None)
+            if hit:
+                found.append(f"`{title}` names a person ({hit})")
+                break
+    return found
+
+
+def stakeholder_leaks(n: Note, people: set | None = None) -> list:
+    """Stakeholder content in a shared note: any stakeholder field, heading or relationship prose on a
+    profile; on an org page, relationship prose or a stakeholder section naming a person; the distinctly
+    relational heading (how we can help each other) in any other shared note."""
+    if n.folder_layer not in ("company", "team"):
+        return []
+    if n.type == "company":
+        return org_stakeholder_leaks(n, people)
+    heads = [t for _, _, t in _headings(n.body.split("\n"))]
+    if not is_profile(n):
+        return [f"`{t}`" for t in heads if RELATIONAL_HEADING.match(_heading_key(t))]
+    found = [f"`{k}:`" for k in n.fm if is_stakeholder_field(k)]
+    found += [f"`{t}`" for t in heads if STAKEHOLDER_HEADING.match(_heading_key(t))]
+    if STAKEHOLDER_PROSE.search(strip_code(n.body)):
+        found.append("relationship strength or last interaction in the text")
+    return found
+
+
+def stakeholder_leak_message(n: Note, leaks: list) -> str:
+    where = (f"Personal/Stakeholders/Stakeholder - {n.name}.md" if is_profile(n)
+             else "that person's stakeholder note in Personal/Stakeholders/")
+    return f"stakeholder content in a shared note ({', '.join(leaks)}): move it to {where}, which is never shared"
+
+
+def profiles(notes) -> list:
+    return sorted([n for n in notes if n.type == "person" and n.rel.startswith(PEOPLE_DIR)], key=lambda n: n.name)
+
+
+COMPANIES_DIR = "Company/Org/Companies/"
+CONTACTS_DIR = "Company/Org/Contacts/"
+ORG_KINDS = ("customer", "partner", "vendor", "prospect", "investor", "other")
+ORG_KIND_TITLES = {"customer": "Customers", "partner": "Partners", "vendor": "Vendors", "prospect": "Prospects",
+                   "investor": "Investors", "other": "Other organisations"}
+
+
+def contacts(notes) -> list:
+    """People outside the company we work with: type person in Company/Org/Contacts (never in the org chart)."""
+    return sorted([n for n in notes if n.type == "person" and n.rel.startswith(CONTACTS_DIR)], key=lambda n: n.name)
+
+
+def companies(notes) -> list:
+    """Org pages of the organisations we work with (customers, partners, vendors ...)."""
+    return sorted([n for n in notes if n.type == "company" and n.folder_layer == "company"], key=lambda n: n.name)
+
+
+def resolve_company(notes, ref):
+    """The org page a name or alias names, or None."""
+    key = _ref_key(ref)
+    hits = [c for c in companies(notes) if key and key in project_keys(c)]
+    if len(hits) > 1:
+        raise SystemExit(f"error: {ref!r} matches several org pages ({', '.join(c.rel for c in hits)}); pass the exact name")
+    return hits[0] if hits else None
+
+
+def person_keys(p: Note) -> set:
+    """Every identifier a profile answers to: its name, aliases, work email, and handles (system:id)."""
+    keys = {p.name.lower()}
+    for field in ("aliases", "handles"):
+        keys |= {_norm(v) for v in as_list(p.get(field)) if isinstance(v, str) and v.strip() and v.strip() != "TBD"}
+    email = p.get("email")
+    if isinstance(email, str) and "@" in email:
+        keys.add(_norm(email))
+    return keys
+
+
+def resolve_person(notes, ref, pool: str = "profiles"):
+    """The profile (pool="all": or contact card) a name, alias, email or handle identifies, or None.
+    Ambiguity is an error, never a guess."""
+    key = _ref_key(ref)
+    people = profiles(notes) + (contacts(notes) if pool == "all" else [])
+    hits = [p for p in people if key and key in person_keys(p)]
+    if len(hits) > 1:
+        raise SystemExit(f"error: {ref!r} matches several profiles ({', '.join(p.name for p in hits)}); "
+                         "pass the full name, or a handle only one of them has")
+    return hits[0] if hits else None
+
+
+def shared_projects(notes) -> list:
+    """Project notes a shared profile may link to: Company/ and Teams/ only, never Personal/."""
+    return [n for n in notes if n.type == "project" and n.folder_layer in ("company", "team")]
+
+
+def project_keys(n: Note) -> set:
+    """A project answers to its name, its aliases, and its refs (ids and URLs in other systems)."""
+    keys = {n.name.lower()}
+    for field in ("aliases", "refs"):
+        keys |= {_norm(v) for v in as_list(n.get(field)) if isinstance(v, str) and v.strip()}
+    return keys
+
+
+def resolve_project(notes, ref):
+    key = _ref_key(ref)
+    hits = [n for n in shared_projects(notes) if key and key in project_keys(n)]
+    if len(hits) > 1:
+        raise SystemExit(f"error: {ref!r} matches several project notes ({', '.join(n.rel for n in hits)}); "
+                         "pass the exact note name")
+    return hits[0] if hits else None
+
+
+def works_on_threshold(root: Path) -> str:
+    """Lowest confidence `brain person works-on` records on a shared profile (people.works_on_min_confidence,
+    a company policy in Company/company.yaml)."""
+    v = _norm((load_config(root).get("people") or {}).get("works_on_min_confidence") or "high")
+    return v if v in THRESHOLDS else "high"
+
+
+def period_ended(per: str, period: dict) -> bool:
+    """True when an objective period (YYYY or YYYY-Qn) is before the current one."""
+    m = re.fullmatch(r"(\d{4})(?:-Q([1-4]))?", str(per or "").strip())
+    if not m:
+        return False
+    cy, cq, y = int(period["year"]), int(period["quarter"][-1]), int(m.group(1))
+    return y < cy or (m.group(2) is not None and y == cy and int(m.group(2)) < cq)
+
+
+def people_table(note: Note) -> list:
+    """[(role label, [link targets])] from a note's `## People` table (| Owner | [[Jane Doe]] |)."""
+    lines = note.body.split("\n")
+    span = _section_span(lines, r"People")
+    if not span:
+        return []
+    out = []
+    for line in lines[span[0] + 1:span[1]]:
+        if not line.strip().startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 2 or not cells[0] or set(cells[0]) <= set("-: "):
+            continue
+        targets = [m.group(2).strip() for m in LINK_RE.finditer(" ".join(cells[1:]))]
+        if targets:
+            out.append((cells[0], targets))
+    return out
+
+
+def role_from_label(label: str) -> str:
+    """'Contributors' -> 'contributor', 'DRI' -> 'owner'; other labels are kept, lowercased."""
+    low = _norm(label)
+    for role in WORK_ROLES:
+        if low.startswith(role):
+            return role
+    if low in ("dri", "accountable", "driver"):
+        return "owner"
+    if low in ("member", "members", "team"):
+        return "contributor"
+    return low or "contributor"
+
+
+def display_source(s) -> str:
+    """A source as prose: URLs stay clickable, ids like linear:ONB-12 go in code spans (they are not claims)."""
+    pointer = _freshness_module().TYPED_POINTER  # what FRESH-3 flags, so the two cannot drift
+    s, out, pos = str(s or ""), [], 0
+    for m in URL_RE.finditer(s):
+        out += [pointer.sub(lambda p: f"`{p.group(0)}`", s[pos:m.start()]), m.group(0)]
+        pos = m.end()
+    out.append(pointer.sub(lambda p: f"`{p.group(0)}`", s[pos:]))
+    return "".join(out).strip()
+
+
+def person_refs(v) -> list:
+    """Each person a field names: a list, or a string with one or more [[links]] ('[[A]], [[B]]')."""
+    out = []
+    for item in as_list(v):
+        links = [m.group(2).strip() for m in LINK_RE.finditer(item)] if isinstance(item, str) else []
+        out += links or ([item] if item else [])
+    return out
+
+
+def _date_str(v) -> str:
+    s = str(v or "").strip()
+    return "" if s.upper() == "TBD" else s[:10]
+
+
+def work_items(notes, period: dict) -> dict:
+    """profile name (lowercase) -> the work items `brain refresh` lists on that profile.
+
+    Read from shared notes only (a shared profile never reflects Personal/): project owners, optional
+    `contributors:` and `stakeholders:` lists, `## People` tables, objective and key result owners, and
+    the profile's own `works_on:` entries recorded from connected systems."""
+    people = profiles(notes)
+    lookup = {}
+    for p in people:
+        for k in person_keys(p):
+            lookup.setdefault(k, p)
+    items = {p.name.lower(): [] for p in people}
+
+    def add(ref, **item):
+        p = lookup.get(_ref_key(ref)) if ref else None
+        if p:
+            items[p.name.lower()].append(item)
+
+    for n in notes:
+        if n.folder_layer not in ("company", "team"):
+            continue
+        if n.type == "project":
+            status = str(n.get("status") or "")
+            done = status.lower() in DONE_STATUSES
+            when = _date_str(n.get("updated") or n.get("date"))
+            detail = "project note" + (f", {status}" if done else "") + (f", updated {when}" if when else "")
+            refs = [(r, "owner") for r in person_refs(n.get("owner"))]
+            for field, role in (("contributors", "contributor"), ("stakeholders", "stakeholder")):
+                refs += [(r, role) for r in person_refs(n.get(field))]
+            refs += [(t, role_from_label(label)) for label, targets in people_table(n) for t in targets]
+            for ref, role in refs:
+                add(ref, key=n.name.lower(), label=f"[[{n.name}]]", role=role, detail=detail,
+                    current=not done, group=0)
+        elif n.type == "objective":
+            per = str(n.get("period") or "")
+            done = str(n.get("status") or "").lower() in DONE_STATUSES or period_ended(per, period)
+            for ref in person_refs(n.get("owner")):
+                add(ref, key=n.name.lower(), label=f"[[{n.name}]]", role="objective owner",
+                    detail=f"objective, {per or 'period TBD'}", current=not done, group=1)
+            for kr in parse_krs(n):
+                for ref in person_refs(kr["fields"].get("owner")):
+                    add(ref, key=f"{n.name.lower()}#{kr['id']}", label=f"[[{n.name}#^{kr['id']}]]",
+                        role="key result owner", detail=f"{kr['id'].upper()}, {per or 'period TBD'}",
+                        current=not done, group=1)
+
+    projects = {}
+    for n in shared_projects(notes):
+        for k in project_keys(n):
+            projects.setdefault(k, n)
+    for p in people:
+        for e in as_list(p.get("works_on")):
+            if not isinstance(e, dict) or not e.get("project"):
+                continue
+            name = link_target(e["project"]) if "[[" in str(e["project"]) else str(e["project"]).strip()
+            proj = projects.get(_norm(name))
+            until = _date_str(e.get("until")) or "present"
+            done = bool(proj) and str(proj.get("status") or "").lower() in DONE_STATUSES
+            current = until.lower() in OPEN_UNTIL and not done
+            bits = [f"{e['confidence']} confidence"] if e.get("confidence") else []
+            if e.get("source"):
+                bits.append(display_source(e["source"]))
+            start = _date_str(e.get("from"))
+            if current:
+                bits += ([f"since {start}"] if start else []) + [f"as of {_date_str(e.get('checked') or e.get('learned')) or 'TBD'}"]
+            else:
+                bits.append(f"{start or 'TBD'} to {until if until.lower() not in OPEN_UNTIL else 'TBD'}")
+            if not proj:
+                bits.append("no project note yet")
+            items[p.name.lower()].append({
+                "key": proj.name.lower() if proj else _norm(name), "label": f"[[{proj.name}]]" if proj else display_source(name),
+                "role": _norm(e.get("role")) or "contributor", "detail": "; ".join(bits), "current": current,
+                "group": 0, "recorded": True, "no_note": not proj})
+    return items
+
+
+def _merged(items: list) -> list:
+    """One line per (work, role, current or past): a note-derived line absorbs a recorded entry's source."""
+    out = {}
+    for it in sorted(items, key=lambda i: bool(i.get("recorded"))):
+        k = (it["key"], it["role"], it["current"])
+        if k in out:
+            if it.get("recorded"):
+                out[k]["also"] = it["detail"]
+            continue
+        out[k] = dict(it)
+    return sorted(out.values(), key=lambda i: (i["group"], i["label"].lower(), i["role"]))
+
+
+def render_works_on(items: list) -> str:
+    rows = _merged(items)
+    if not rows:
+        return WORKS_ON_EMPTY
+
+    def fmt(i):
+        detail = i["detail"] + (f"; also recorded: {i['also']}" if i.get("also") else "")
+        return f"- {i['label']} - {i['role']} ({detail})"
+    lines = []
+    for title, sel in (("Current", [i for i in rows if i["current"]]), ("Past", [i for i in rows if not i["current"]])):
+        if sel:
+            lines += ([""] if lines else []) + [f"### {title}", ""] + [fmt(i) for i in sel]
+    return "\n".join(lines)
+
+
+def render_work_map(notes, model: dict) -> str:
+    """Organization hub view: current projects and the people on them, from the same model as the profiles."""
+    people = profiles(notes)
+    if not people:
+        return "No people yet. Add profiles with `/company-brain:org` or `brain person add`."
+    work = {}
+    for p in people:
+        mine = [i for i in _merged(model.get(p.name.lower(), [])) if i["current"] and i["group"] == 0]
+        for i in mine:
+            w = work.setdefault(i["key"], {"label": i["label"], "no_note": i.get("no_note"), "people": {}})
+            w["people"].setdefault(p.name, []).append(i["role"])
+
+    def line(w):
+        who = ", ".join(f"[[{name}]] ({', '.join(roles)})" for name, roles in sorted(w["people"].items()))
+        return f"- {w['label']}: {who}"
+    noted = sorted((w for w in work.values() if not w["no_note"]), key=lambda w: w["label"].lower())
+    unnoted = sorted((w for w in work.values() if w["no_note"]), key=lambda w: w["label"].lower())
+    lines = [line(w) for w in noted] or ["- No project work recorded yet."]
+    if unnoted:
+        lines += ["", "### Seen in connected systems, no project note yet", "",
+                  "Create a note with `/company-brain:project` when the work belongs in the brain.", ""]
+        lines += [line(w) for w in unnoted]
+    return "\n".join(lines)
+
+
+def place_works_on(text: str, content: str) -> str:
+    """Put the generated works-on block in a profile: in its markers, else under `## Works on`
+    (replacing the legacy Dataview query), else in a new section before `## Reports`."""
+    start, end = AUTO_START.format(key=WORKS_ON_KEY), AUTO_END.format(key=WORKS_ON_KEY)
+    block = f"{start}\n{content.rstrip()}\n{end}"
+    if start in text and end in text:
+        pre, rest = text.split(start, 1)
+        return pre + block + rest.split(end, 1)[1]
+    head, body = _split_head(text)
+    lines = body.split("\n")
+    span = _section_span(lines, r"Works on")
+    if span:
+        s, e = span
+        rest = LEGACY_WORKS_ON.sub(LIVE_WORKS_ON.replace("\\", "\\\\") + "\n", "\n".join(lines[s + 1:e])).strip("\n")
+        new = [lines[s], block] + (["", rest] if rest.strip() else []) + [""]
+        return head + "\n".join(lines[:s] + new + lines[e:])
+    sect = ["## Works on", block, "", LIVE_WORKS_ON, ""]
+    span = _section_span(lines, r"Reports")
+    if span:
+        return head + "\n".join(lines[:span[0]] + sect + lines[span[0]:])
+    return head + body.rstrip() + "\n\n" + "\n".join(sect)
+
+
+# ---------------------------------------------------------------------------
+# Organisations we work with: the People Directory, org pages, People.base
+# ---------------------------------------------------------------------------
+
+PEOPLE_DIRECTORY = "Company/Org/People Directory.md"
+PEOPLE_BASE = "Company/Org/People.base"
+PEOPLE_BASE_TEMPLATE = ENGINE / "references" / "bases" / "people.base.template"  # vendored from upstream
+BASE_STAMP = ("# Generated by brain refresh from .company-brain/references/bases/people.base.template "
+              "(obsidian-second-brain) with Company Brain's folders and columns. Edit the overlay in brain.py, "
+              "not this file; an edit made in Obsidian is kept. sha256:{digest}")
+# used only when the vendored template no longer has the shape the overlay expects
+DEFAULT_PEOPLE_BASE = {
+    "filters": {"and": ['file.inFolder("{{PEOPLE_FOLDER}}")', 'file.ext == "md"', 'note.type == "person"']},
+    "properties": {"role": {"displayName": "Role"}},
+    "views": [{"type": "table", "name": "All", "order": ["file.basename", "role", "company", "updated"]}],
+}
+
+
+def _base_scalar(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return str(v)
+    s = "" if v is None else str(v)
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", s) and s.lower() not in ("true", "false", "yes", "no", "null"):
+        return s
+    return "'" + s.replace("'", "''") + "'"
+
+
+def dump_yaml(obj, indent: int = 0) -> list:
+    """Nested maps and lists as block YAML (single-quoted strings), in the shape parse_yaml reads back."""
+    pad, out = " " * indent, []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, (dict, list)) and v:
+                out += [f"{pad}{k}:"] + dump_yaml(v, indent + 2)
+            elif isinstance(v, (dict, list)):
+                out.append(f"{pad}{k}: {'{}' if isinstance(v, dict) else '[]'}")
+            else:
+                out.append(f"{pad}{k}: {_base_scalar(v)}")
+    else:
+        for item in obj:
+            if isinstance(item, (dict, list)) and item:
+                sub = dump_yaml(item, indent + 2)
+                out += [f"{pad}- " + sub[0].lstrip()] + sub[1:] if isinstance(item, dict) else [f"{pad}-"] + sub
+            else:
+                out.append(f"{pad}- {_base_scalar(item)}")
+    return out
+
+
+def people_base(company_name: str, template: str | None = None) -> tuple:
+    """(People.base text, warning or None): upstream's people base with our overlay. The overlay points it at
+    Company/Org/People and Company/Org/Contacts, adds an Organization column (ours for colleagues, `company:`
+    for contacts) and Team. Everything else (formulas, columns, views) comes from upstream, so taking a newer
+    template with `brain upstream-check --copy` and running refresh brings upstream's changes in."""
+    warning = None
+    try:
+        raw = template if template is not None else PEOPLE_BASE_TEMPLATE.read_text(encoding="utf-8")
+        base = parse_yaml(raw)
+        ands = base["filters"]["and"]
+        if not (isinstance(ands, list) and any("{{PEOPLE_FOLDER}}" in str(f) for f in ands)
+                and isinstance(base.get("views"), list) and base["views"]):
+            raise ValueError("no folder filter or no views")
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        warning = (f"the vendored people.base.template no longer has the shape the People.base overlay expects "
+                   f"({exc}); People.base uses Company Brain's built-in default until the overlay in brain.py is updated")
+        base = json.loads(json.dumps(DEFAULT_PEOPLE_BASE))
+    folders = {"or": ['file.inFolder("Company/Org/People")', 'file.inFolder("Company/Org/Contacts")']}
+    base["filters"]["and"] = [folders if "{{PEOPLE_FOLDER}}" in str(f) else f for f in base["filters"]["and"]]
+    if not isinstance(base.get("formulas"), dict):
+        base["formulas"] = {}
+    base["formulas"]["organization"] = 'if(company, company, "{}")'.format(str(company_name).replace('"', "'"))
+    if not isinstance(base.get("properties"), dict):
+        base["properties"] = {}
+    base["properties"]["formula.organization"] = {"displayName": "Organization"}
+    base["properties"].setdefault("team", {"displayName": "Team"})
+    for view in base["views"]:
+        if not isinstance(view, dict):
+            continue
+        order = ["formula.organization" if c == "company" else c for c in as_list(view.get("order"))]
+        if "formula.organization" not in order:
+            order.insert(min(1, len(order)), "formula.organization")
+        if "team" not in order:
+            order.insert(order.index("formula.organization") + 1, "team")
+        view["order"] = order
+        sizes = view.get("columnSize")
+        if isinstance(sizes, dict) and "company" in sizes:
+            sizes["formula.organization"] = sizes.pop("company")
+    body = "\n".join(dump_yaml(base)) + "\n"
+    return BASE_STAMP.format(digest=hashlib.sha256(body.encode()).hexdigest()[:16]) + "\n" + body, warning
+
+
+def _base_edited(text: str) -> bool:
+    """True when a People.base no longer carries the stamp of the content refresh wrote (Obsidian saved it)."""
+    first, _, rest = text.replace("\r\n", "\n").partition("\n")
+    m = re.search(r"sha256:([0-9a-f]{16})", first)
+    return not m or hashlib.sha256(rest.encode()).hexdigest()[:16] != m.group(1)
+
+
+def people_base_drift(root: Path, built: str) -> bool:
+    """True when an Obsidian-edited People.base lacks filters, formulas or columns the template and overlay
+    now build. View settings (widths, order, sorting) are the reader's own and do not count."""
+    path = root / PEOPLE_BASE
+    if not path.exists():
+        return False
+    cur = path.read_text(encoding="utf-8")
+    if not _base_edited(cur):
+        return False
+    kept, want = parse_yaml(cur), parse_yaml(built)
+    kept = kept if isinstance(kept, dict) else {}
+    return any(kept.get(k) != want.get(k) for k in ("filters", "formulas", "properties"))
+
+
+def write_people_base(root: Path, company_name: str) -> str:
+    path = root / PEOPLE_BASE
+    text, _ = people_base(company_name)
+    if path.exists():
+        cur = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+        if _base_edited(cur):
+            return "kept (edited in Obsidian; delete it to regenerate)"
+        if cur == text:
+            return "unchanged"
+    status = "updated" if path.exists() else "created"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return status
+
+
+def org_members(cards: list, orgs: list) -> tuple:
+    """({org page name: [notes whose company: names it]}, [(note, organisation text) with no org page]),
+    from one name and alias index, so a refresh stays linear in orgs and contacts."""
+    idx = {}
+    for o in orgs:
+        for k in project_keys(o):
+            idx.setdefault(k, o)
+    members, loose = {}, []
+    for c in cards:
+        target = _real_link(c.get("company"))
+        org = idx.get(_norm(target)) if target else None
+        if org:
+            members.setdefault(org.name, []).append(c)
+        else:
+            loose.append((c, target))
+    return members, loose
+
+
+def render_org_people(org: Note, mine: list) -> str:
+    owner = _real_link(org.get("owner"))
+    lines = [f"Owner on our side: {f'[[{owner}]]' if owner else 'TBD'}", ""]
+    for c in mine:
+        co = _real_link(c.get("owner"))
+        lines.append(f"- [[{c.name}]] - {c.get('role') or 'role TBD'}" + (f" (relationship owner [[{co}]])" if co else ""))
+    if not mine:
+        lines.append(f'No contacts yet. Add one with `brain person add "<Full Name>" --company "{org.name}"`.')
+    return "\n".join(lines)
+
+
+def render_people_directory(notes, company_name: str) -> str:
+    """Everyone the company works with, by organisation: ours first, then customers, partners, vendors ..."""
+    people, cards, orgs = profiles(notes), contacts(notes), companies(notes)
+
+    def person(n, extra=""):
+        return f"- [[{n.name}]] - {n.get('role') or 'role TBD'}{extra}" + (" (left)" if _norm(n.get("status")) == "left" else "")
+    lines = [f"### {company_name} ([[Organization]])", ""]
+    lines += [person(p, f", [[{_real_link(p.get('team'))}]]" if _real_link(p.get("team")) else "") for p in people] \
+        or ["- No people yet. Add profiles with `/company-brain:org` or `brain person add`."]
+    kind_of = {o.name: (_norm(o.get("kind")) if _norm(o.get("kind")) in ORG_KINDS else "") for o in orgs}
+    members, loose = org_members(cards, orgs)
+    for kind in ORG_KINDS + ("",):
+        sel = [o for o in orgs if kind_of[o.name] == kind]
+        if not sel:
+            continue
+        lines += ["", f"### {ORG_KIND_TITLES.get(kind, 'Kind not set yet')}", ""]
+        for o in sel:
+            owner = _real_link(o.get("owner"))
+            lines.append(f"- [[{o.name}]]" + (f" (owner on our side [[{owner}]])" if owner else "")
+                         + (f" ({o.get('status')})" if _norm(o.get("status")) not in ("", "active") else ""))
+            lines += ["  " + person(c) for c in members.get(o.name, [])]
+    if loose:
+        lines += ["", "### No org page yet", ""]
+        lines += [person(c, f", {t}" if t else ", organisation TBD") for c, t in loose]
+    return "\n".join(lines)
+
+
+def render_entries(key: str, entries: list) -> list:
+    """Frontmatter lines for a list of maps (works_on:), in the shape parse_yaml reads back."""
+    if not entries:
+        return [f"{key}: []"]
+    out = [f"{key}:"]
+    for e in entries:
+        for i, (k, v) in enumerate(e.items()):
+            out.append(("  - " if i == 0 else "    ") + f"{k}: {yaml_value(v)}")
+    return out
+
+
+def set_frontmatter_lines(text: str, key: str, new_lines: list) -> str:
+    """Replace a top-level key and its indented block in the frontmatter (or append it)."""
+    m = FM_RE.match(text)
+    if not m:
+        return text
+    lines = m.group(1).split("\n")
+    for i, line in enumerate(lines):
+        if re.match(rf"^{re.escape(key)}\s*:", line):
+            j = i + 1
+            while j < len(lines) and lines[j].startswith((" ", "-")) and not re.match(r"^[A-Za-z_]", lines[j]):
+                j += 1
+            lines[i:j] = new_lines
+            break
+    else:
+        lines += new_lines
+    return "---\n" + "\n".join(lines) + "\n---\n" + text[m.end():]
+
+
+# ---------------------------------------------------------------------------
 # Index
 # ---------------------------------------------------------------------------
 
@@ -2118,6 +2766,7 @@ def check(root: Path, notes=None) -> list:
         issues.append({"severity": sev, "path": n.rel if n else "", "message": msg})
 
     inbound = {}
+    people = people_names(root)
     for n in notes:
         is_board = "kanban-plugin" in n.fm
         exempt = n.rel in EXEMPT_FILES or is_board
@@ -2135,6 +2784,11 @@ def check(root: Path, notes=None) -> list:
                 add("error", n, f"layer: {declared} does not match its folder ({n.folder_layer})")
         if shared and re.search(r"^## Private\s*$", n.body, re.M):
             add("error", n, "shared note contains a `## Private` section (move it to Personal/)")
+        if shared and n.type in PERSONAL_ONLY_TYPES:
+            add("error", n, f"`type: {n.type}` notes are personal; move this note to Personal/")
+        leaks = stakeholder_leaks(n, people)
+        if leaks:
+            add("error", n, stakeholder_leak_message(n, leaks))
         for target, anchor, embed in n.links():
             if re.search(r"\.(?!md$)[A-Za-z0-9]{2,6}$", target):
                 continue  # canvas, image, pdf: not a note
@@ -2150,8 +2804,56 @@ def check(root: Path, notes=None) -> list:
                 add("error", n, f"leak: shared note links to personal note [[{target}]]")
     for n in notes:
         if n.rel not in inbound and n.rel not in EXEMPT_FILES and n.folder_layer in ("company", "team") \
-                and n.type not in ("hub", "okr-tree", "prioritization", "org-chart") and "kanban-plugin" not in n.fm:
+                and n.type not in ("hub", "okr-tree", "prioritization", "org-chart", "people-directory") \
+                and "kanban-plugin" not in n.fm:
             add("info", n, "orphan: no other note links here")
+    threshold = works_on_threshold(root)
+    owners = {}
+    for p in profiles(notes):
+        for k in person_keys(p):
+            owners.setdefault(k, []).append(p.name)
+        for i, e in enumerate(as_list(p.get("works_on")), 1):
+            if not isinstance(e, dict) or not e.get("project"):
+                add("warn", p, f"works_on entry {i} is not a map with a `project:`")
+                continue
+            what = f"works_on entry {i} ({link_target(e['project']) if '[[' in str(e['project']) else e['project']})"
+            if not e.get("source"):
+                add("warn", p, f"{what} has no `source:`; say which system and record showed the work")
+            conf = _norm(e.get("confidence"))
+            if CONFIDENCE_RANK.get(conf, -1) < CONFIDENCE_RANK[threshold]:
+                add("warn", p, f"{what} has confidence {conf or 'missing'}, below this brain's threshold "
+                               f"({threshold}): confirm it with the user (then `stated`) or end it")
+            if _norm(e.get("role")) not in WORK_ROLES:
+                add("info", p, f"{what} has role {e.get('role')!r}; expected one of {', '.join(WORK_ROLES)}")
+    start, end = AUTO_START.format(key=WORKS_ON_KEY), AUTO_END.format(key=WORKS_ON_KEY)
+    active = [p for p in profiles(notes) if str(p.get("status") or "").lower() != "left"]
+    idle = [p.name for p in active if "### Current" not in (p.text.split(start, 1)[1].split(end, 1)[0]
+                                                              if start in p.text and end in p.text else "")]
+    if idle and len(idle) < len(active):  # silent until the brain records work for anyone
+        add("info", None, f"{len(idle)} profile(s) show no current work as of the last `brain refresh`: "
+                          + ", ".join(idle[:10]) + (", ..." if len(idle) > 10 else "")
+                          + ". Look in connected systems with the org skill's works-on rules")
+    orgs = companies(notes)
+    outsiders = {n.rel for ms in org_members(profiles(notes), orgs)[0].values() for n in ms}
+    for p in profiles(notes):
+        if p.rel in outsiders:
+            add("warn", p, f"`company:` names {_real_link(p.get('company'))}, another organisation: a person there is a "
+                           "contact card in Company/Org/Contacts (`brain person add ... --company`), not a profile, "
+                           "or they would join our org chart and teams")
+    for o in orgs:
+        if _norm(o.get("kind")) not in ORG_KINDS + ("tbd", ""):
+            add("info", o, f"kind {o.get('kind')!r}; expected one of {', '.join(ORG_KINDS)}")
+    base_text, base_warning = people_base(who["company"])
+    if base_warning:
+        add("warn", None, base_warning)
+    if people_base_drift(root, base_text):
+        add("warn", None, f"{PEOPLE_BASE} was changed in Obsidian, so `brain refresh` keeps it, and it no longer has the "
+                          "filters, formulas or columns that upstream's template and the overlay now build: delete it and "
+                          "run `brain refresh`, then redo your view changes")
+    for k, names in sorted(owners.items()):
+        if len(names) > 1:
+            add("warn", None, f"identifier {k!r} is on several profiles ({', '.join(names)}): "
+                              "connected-system matches for it are ambiguous")
     objs = okr_model(notes)
     for o in objs.values():
         n = o["note"]
@@ -2279,7 +2981,7 @@ CONTENT_PATTERNS = (".obsidian/workspace*",)  # per-device state that lists the 
 CONTENT_TYPES = {"objective", "plan", "strategy", "playing-to-win", "vpc", "bmc", "outcome", "opportunity",
                  "solution", "experiment", "project", "meeting", "one-on-one", "decision", "knowledge",
                  "source", "person", "team", "daily", "weekly", "team-update", "team-weekly", "me",
-                 "mission", "vision", "values", "crew-log", "crew-lessons"}
+                 "mission", "vision", "values", "crew-log", "crew-lessons", "stakeholder", "company"}
 GIT_HOOK_MARK = "company-brain: git carries the system only"
 SYNC_ROOTS = ("Library/CloudStorage", "Library/Mobile Documents", "Dropbox", "Google Drive", "iCloudDrive")
 
@@ -2355,14 +3057,17 @@ def content_markers(root: Path) -> dict:
     company = str((load_config(root).get("company") or {}).get("name") or "").strip()
     # names already public on purpose (a maintainer in LICENSE, a plugin author): brain.yaml git.public_names
     public = {str(n).strip() for n in as_list((_read_yaml(root / "brain.yaml").get("git") or {}).get("public_names")) if n}
-    people, note_names, note_paths = set(), {}, []
+    people, orgs, note_names, note_paths = set(), set(), {}, []
     for path in iter_md(root):
         rel = path.relative_to(root).as_posix()
         if rel.split("/")[0] not in ("Company", "Teams", "Personal"):
             continue
         name = path.stem.strip()
-        if rel.startswith("Company/Org/People/") and " " in name and name not in public:
+        # colleagues and the people we know at customers, partners and vendors
+        if rel.startswith(("Company/Org/People/", CONTACTS_DIR)) and " " in name and name not in public:
             people.add(name)
+        if rel.startswith(COMPANIES_DIR) and name not in public:  # the organisations themselves
+            orgs.add(name)
         low = name.lower()
         if low in generic or re.match(r"(my )?okr tree - ", low):
             continue
@@ -2374,7 +3079,8 @@ def content_markers(root: Path) -> dict:
         if teams else None  # "Teams/Ops" must not match "Teams/Operations"
     company = company if company not in (PLACEHOLDER_COMPANY, "TBD", "Your Company Name") and company not in public else ""
     return {"company": company, "company_re": _words_re([company]), "people": sorted(people),
-            "people_re": _words_re(people), "teams_re": teams_re, "note_names": note_names, "note_paths": note_paths}
+            "people_re": _words_re(people), "orgs_re": _words_re(orgs), "teams_re": teams_re,
+            "note_names": note_names, "note_paths": note_paths}
 
 
 def scan_added_line(line: str, markers: dict) -> list:
@@ -2386,6 +3092,8 @@ def scan_added_line(line: str, markers: dict) -> list:
         found.append((markers["company"], f"the company name {markers['company']!r}"))
     for person in sorted({m.group(1) for m in markers["people_re"].finditer(line)} if markers["people_re"] else ()):
         found.append((person, f"a person's name {person!r}"))
+    for org in sorted({m.group(1) for m in markers["orgs_re"].finditer(line)} if markers.get("orgs_re") else ()):
+        found.append((org, f"the name of an organisation we work with {org!r} (list it in git.public_names if it is public on purpose)"))
     for target in (m.group(2).strip() for m in LINK_RE.finditer(line)):
         rel = markers["note_names"].get(target.split("/")[-1].lower())
         if rel:
@@ -2846,7 +3554,7 @@ EXPORT_GROUPS = [
     ("01 Company overview", lambda n: n.folder_layer == "company" and n.type in ("mission", "vision", "values", "hub") and n.rel.count("/") == 1),
     ("02 Strategy", lambda n: n.folder_layer in ("company", "team") and n.type in ("strategy", "vpc", "bmc", "plan")),
     ("03 OKRs", lambda n: n.folder_layer in ("company", "team") and n.type in ("objective", "okr-tree")),
-    ("04 Org and teams", lambda n: n.folder_layer in ("company", "team") and n.type in ("person", "team", "org-chart")),
+    ("04 Org and teams", lambda n: n.folder_layer in ("company", "team") and n.type in ("person", "team", "org-chart", "company", "people-directory")),
     ("05 Discovery and roadmap", lambda n: n.folder_layer in ("company", "team") and n.type in OST_TYPES + ("prioritization",)),
     ("06 Projects", lambda n: n.folder_layer in ("company", "team") and n.type == "project" and str(n.get("status") or "") not in ("archived",)),
     ("07 Decisions", lambda n: n.folder_layer in ("company", "team") and n.type == "decision"),
@@ -3163,12 +3871,295 @@ def _values_from_sets(sets) -> dict:
     return values
 
 
+def add_contact(root: Path, name: str, company: str, role: str | None = None, owner: str | None = None,
+                email: str | None = None, aliases=None, handles=None, kind: str | None = None) -> dict:
+    """A contact card for someone at another organisation, with a stub org page when there is none yet."""
+    notes = scan(root)
+    org = resolve_company(notes, company)
+    taken = create_note(root, "contact", name, name=name, write=False)  # check the name before writing anything
+    if taken.get("reason"):
+        if taken["path"].startswith(CONTACTS_DIR):
+            return dict(taken, company="", company_created=False, kind="")
+        raise SystemExit(f"error: {taken['path']} already has the name {name!r}, and file names are unique in the brain. "
+                         f"Give the contact a distinguishing name (for example \"{name} ({link_target(company) if '[[' in company else company.strip()})\") "
+                         "and add the plain name to its aliases")
+    created_org = None
+    if not org:
+        org_name = link_target(company) if "[[" in company else company.strip()
+        created_org = create_note(root, "company", org_name, name=org_name,
+                                  values={"kind": _norm(kind) if _norm(kind) in ORG_KINDS else "TBD", "owner": "TBD"})
+        if created_org.get("reason"):
+            raise SystemExit(f"error: {created_org['path']} already has the name {org_name!r} and is not an org page")
+        org = resolve_company(scan(root), org_name)
+    values = {"role": role or "TBD", "company": f"[[{org.name}]]", "owner": f"[[{link_target(owner)}]]" if owner else "TBD"}
+    if email:
+        values["email"] = email
+    if aliases:
+        values["aliases"] = aliases
+    if handles:
+        values["handles"] = handles
+    res = create_note(root, "contact", name, values=values, name=name)
+    res["company"] = org.rel
+    res["company_created"] = bool(created_org and created_org.get("created"))
+    res["kind"] = str(org.get("kind") or "TBD")
+    return res
+
+
 def cmd_person_add(args):
     root = need_root(args)
+    ours = {_norm(whoami(root)["company"]), "company"}
+    if args.company and _ref_key(args.company) not in ours:
+        res = add_contact(root, args.name, args.company, role=args.role, owner=args.owner, email=args.email,
+                          aliases=args.alias, handles=args.handle, kind=args.kind)
+        emit(args, res, ("created " if res["created"] else "exists ") + res["path"]
+             + (f"\ncreated the org page {res['company']} (kind {res['kind']})" if res["company_created"] else ""))
+        return
     values = {"role": args.role or "TBD", "team": f"[[{args.team}]]" if args.team else "TBD",
               "manager": f"[[{args.manager}]]" if args.manager else "TBD"}
+    if args.email:
+        values["email"] = args.email
+    if args.alias:
+        values["aliases"] = args.alias
+    if args.handle:
+        values["handles"] = args.handle
     res = create_note(root, "person", args.name, values=values, name=args.name)
-    emit(args, res, ("created " if res["created"] else "exists ") + res["path"])
+    unused = [f for f, v in (("--owner", args.owner), ("--kind", args.kind)) if v]
+    emit(args, res, ("created " if res["created"] else "exists ") + res["path"]
+         + (f"\nnote: {' and '.join(unused)} apply to contacts at other organisations; {args.name} is one of ours, "
+            "so they were not used" if unused else ""))
+
+
+def record_work(root: Path, person: str, project: str, role: str, source: str, confidence: str,
+                start: str | None = None, until: str | None = None, end: bool = False,
+                replace: bool = False, create: bool = False, write: bool = True) -> dict:
+    """Record (or re-confirm, or end) one `works_on:` entry on a shared profile.
+
+    The deterministic half of the org skill's works-on mode: the agent judges the evidence, this
+    enforces the rules. Below the brain's confidence threshold nothing is written (code 5). One role
+    per person per project is open at a time, and entries are append-only history: a stronger role
+    closes the open entry and opens a new one; a weaker signal never downgrades an open role unless
+    `replace` says the role really changed. Nothing is deleted."""
+    notes = scan(root)
+    confidence = _norm(confidence)
+    threshold = works_on_threshold(root)
+    if confidence not in CONFIDENCE_RANK:
+        raise SystemExit(f"error: --confidence must be one of: {', '.join(CONFIDENCE_RANK)}")
+    if CONFIDENCE_RANK[confidence] < CONFIDENCE_RANK[threshold]:
+        return {"recorded": False, "code": 5, "reason": f"confidence {confidence} is below this brain's threshold "
+                f"({threshold}, people.works_on_min_confidence in Company/company.yaml). Ask the user to confirm; once they do, "
+                "record it with --confidence stated and the user as the source."}
+    source = re.sub(r"\s+", " ", str(source or "")).replace('"', "'").strip()
+    if not source:
+        raise SystemExit("error: --source is required: the system and the record that shows the work (with a URL where there is one)")
+    role = _norm(role)
+    if (role or not end) and role not in WORK_ROLES:
+        raise SystemExit(f"error: --role must be one of: {', '.join(WORK_ROLES)}")
+    plain = link_target(project) if "[[" in project else project.strip()
+    if not plain:
+        raise SystemExit("error: --project is required")
+    idx = name_index(notes)
+    for m in LINK_RE.finditer(strip_code(source)):
+        target = m.group(2).strip()
+        hits = idx.get(target.split("/")[-1].lower(), [])
+        if hits and all(h.folder_layer == "personal" for h in hits):
+            raise SystemExit(f"error: the source links to a personal note [[{target}]]; a shared profile never "
+                             "points at Personal/. Name the shared record instead, or ask the user")
+    proj = resolve_project(notes, project)  # before any write: an ambiguous project creates nothing
+    label = f"[[{proj.name}]]" if proj else plain
+    key = proj.name.lower() if proj else _norm(plain)
+    today = TODAY.isoformat()
+    prof = resolve_person(notes, person)
+    created = False
+    if not prof:
+        if not create:
+            raise SystemExit(f"error: no profile matches {person!r} (name, alias, email or handle). Check the "
+                             "spelling, add the identifier to the right profile, or pass --create for a colleague "
+                             "with no profile yet")
+        name = link_target(person) if "[[" in person else person.strip()
+        if "@" in name or ":" in name:
+            raise SystemExit("error: --create needs the person's full name, not an email or handle")
+        res = create_note(root, "person", name, name=name, write=write,
+                          values={"role": "TBD", "team": "TBD", "manager": "TBD"})
+        if res.get("reason"):
+            raise SystemExit(f"error: cannot create a profile for {name!r}: {res['path']} already has that name and "
+                             "is not a profile in Company/Org/People. Fix that note, or use the name the profile has")
+        created = True
+        if not write:
+            return {"recorded": True, "action": "added", "person": name, "path": res["path"], "project": label,
+                    "project_note": bool(proj), "role": role, "confidence": confidence, "profile_created": True,
+                    "dry_run": True}
+        notes = scan(root)
+        prof = resolve_person(notes, name)
+    entries = [dict(e) for e in as_list(prof.get("works_on")) if isinstance(e, dict)]
+    names = {}  # project key -> the notes it names; an ambiguous old entry falls back to its own text, never an error
+    for n in shared_projects(notes):
+        for k in project_keys(n):
+            names.setdefault(k, set()).add(n.name.lower())
+
+    def entry_key(e):
+        n = link_target(e.get("project")) if "[[" in str(e.get("project")) else str(e.get("project") or "")
+        hit = names.get(_norm(n), set())
+        return next(iter(hit)) if len(hit) == 1 else _norm(n)
+    open_same = [e for e in entries if entry_key(e) == key and _norm(e.get("until") or "present") in OPEN_UNTIL]
+    action = None
+    if end:
+        closing = [e for e in open_same if not role or _norm(e.get("role")) == role]
+        if not closing:
+            return {"recorded": False, "code": 3, "path": prof.rel,
+                    "reason": f"no open {role + ' ' if role else ''}works_on entry for {plain} on {prof.name} to end"}
+        for e in closing:
+            e["until"], e["checked"] = until or today, today
+        role = role or ", ".join(sorted({_norm(e.get("role")) for e in closing}))
+        action = "ended"
+    else:
+        same = [e for e in open_same if _norm(e.get("role")) == role]
+        stronger = [e for e in open_same if ROLE_RANK.get(_norm(e.get("role")), 0) > ROLE_RANK[role]]
+        if stronger and not same and not replace:
+            return {"recorded": False, "code": 0, "action": "kept", "path": prof.rel, "person": prof.name,
+                    "reason": f"{prof.name} is already recorded as {stronger[0].get('role')} on {plain}; a {role} "
+                              "signal does not change that. Pass --replace if the role really changed"}
+        if same:
+            e = same[0]
+            e["checked"] = today
+            if CONFIDENCE_RANK.get(confidence, 0) > CONFIDENCE_RANK.get(_norm(e.get("confidence")), 0):
+                e["confidence"], e["source"] = confidence, source
+            if start and not _date_str(e.get("from")):
+                e["from"] = start
+                action = "confirmed, start date added"
+            else:
+                action = "confirmed"
+        else:
+            for e in open_same:  # same work, new role: close the old fact, keep it as history
+                e["until"], e["checked"] = start or today, today
+            entries.append({"project": label, "role": role, "source": source, "confidence": confidence,
+                            "from": start or "TBD", "until": until or "present", "learned": today, "checked": today})
+            action = "role changed" if open_same else "added"
+    text = prof.text.lstrip("﻿").replace("\r\n", "\n")
+    text = set_frontmatter_lines(text, "works_on", render_entries("works_on", entries))
+    if action != "confirmed":  # a re-confirmation alone is not a meaningful edit
+        text = set_frontmatter(text, {"updated": today})
+    out = {"recorded": True, "action": action, "person": prof.name, "path": prof.rel, "project": label,
+           "project_note": bool(proj), "role": role, "confidence": confidence, "profile_created": bool(created),
+           "dry_run": not write}
+    if not write:
+        out["text"] = text
+        return out
+    prof.path.write_text(text, encoding="utf-8")
+    notes = scan(root)
+    fresh = next(n for n in notes if n.rel == prof.rel)
+    model = work_items(notes, whoami(root)["period"])
+    fresh.path.write_text(place_works_on(fresh.text.replace("\r\n", "\n"), render_works_on(model[fresh.name.lower()])),
+                          encoding="utf-8")
+    append_log(root, f"works_on {action}: {prof.rel} -> {link_target(label) if proj else display_source(plain)} "
+                     f"({role or 'open role'}, {confidence})")
+    return out
+
+
+def cmd_person_works_on(args):
+    root = need_root(args)
+    res = record_work(root, args.person, args.project, args.role or "", args.source or "", args.confidence,
+                      start=args.since, until=args.until, end=args.ended, replace=args.replace,
+                      create=args.create, write=not args.dry_run)
+    if not res["recorded"]:
+        emit(args, res, f"{res.get('action') or 'not recorded'}: {res['reason']}")
+        sys.exit(res["code"])
+    verb = "would record" if res["dry_run"] else res["action"]
+    text = (f"{verb}: {res['person']} - {res['role']} - {res['project']} ({res['confidence']}) in {res['path']}"
+            + ("" if res["project_note"] else "\n  no project note matches; kept as plain text (link it later with refs: or aliases: on the project)")
+            + ("\n  created the profile (role, team, manager TBD)" if res["profile_created"] else ""))
+    emit(args, {k: v for k, v in res.items() if k != "text"}, text)
+
+
+def upgrade_profile(root: Path, p: Note) -> tuple:
+    """(new text, added) for a profile: template frontmatter keys and sections it lacks, in template order.
+    Nothing it already has is touched; `brain refresh` fills the works-on block afterwards."""
+    tpl = template_file(root, KINDS["person"][0]).read_text(encoding="utf-8")
+    rendered = render_template(tpl, p.name, {k: p.get(k) for k in ("role", "team", "manager") if p.get(k)})
+    tfm, tbody = split_frontmatter(rendered)
+    text = p.text.lstrip("﻿").replace("\r\n", "\n")
+    added = []
+    keys = {k: v for k, v in tfm.items() if k not in p.fm and k not in ("date", "timeline")
+            and not is_stakeholder_field(k) and not (isinstance(v, list) and any(isinstance(x, dict) for x in v))}
+    if keys:
+        text = set_frontmatter(text, keys)
+        added += [f"{k}:" for k in keys]
+    tlines = tbody.split("\n")
+    theads = _headings(tlines)
+    order = []  # (title, lines) of each level-2 template section, in template order
+    for k, (i, lvl, title) in enumerate(theads):
+        if lvl == 2 and not STAKEHOLDER_HEADING.match(_heading_key(title)):  # an old template's stakeholder sections
+            end = next((j for j, l2, _ in theads[k + 1:] if l2 <= 2), len(tlines))
+            order.append((title, tlines[i:end]))
+    for pos, (title, section) in enumerate(order):
+        head, body = _split_head(text)
+        lines = body.split("\n")
+        if title.lower() in {t.lower() for _, lvl, t in _headings(lines) if lvl == 2}:
+            continue
+        at = None  # insert after the nearest earlier template section the profile has
+        for prev, _ in reversed(order[:pos]):
+            span = _section_span(lines, re.escape(prev))
+            if span:
+                at = span[1]
+                break
+        block = list(section)
+        while block and not block[-1].strip():
+            block.pop()
+        if at is None:
+            lines = lines + ([""] if lines and lines[-1].strip() else []) + block + [""]
+        else:
+            if at > 0 and lines[at - 1].strip():
+                block = [""] + block
+            lines = lines[:at] + block + [""] + lines[at:]
+        text = head + "\n".join(lines)
+        added.append(f"## {title}")
+    return text, added
+
+
+def person_template_gaps(root: Path) -> list:
+    """Level-2 sections the engine's person template has and the brain's own copy lacks (an older brain)."""
+    def heads(path):
+        lines = split_frontmatter(path.read_text(encoding="utf-8"))[1].split("\n") if path.is_file() else []
+        return [t for _, lvl, t in _headings(lines) if lvl == 2]
+    own = {h.lower() for h in heads(root / "Templates" / KINDS["person"][0])}
+    shipped = heads(SCAFFOLD / "system" / "Templates" / KINDS["person"][0])
+    return [f"## {h}" for h in shipped if own and h.lower() not in own]
+
+
+def cmd_person_upgrade(args):
+    root = need_root(args)
+    notes = scan(root)
+    sel = profiles(notes)
+    if args.person:
+        p = resolve_person(notes, args.person)
+        if not p:
+            raise SystemExit(f"error: no profile matches {args.person!r}")
+        sel = [p]
+    changes = []
+    for p in sel:
+        new, added = upgrade_profile(root, p)
+        if not added:
+            continue
+        old = p.text.lstrip("﻿").replace("\r\n", "\n")
+        changes.append({"path": p.rel, "added": added,
+                        "diff": "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), fromfile=p.rel, tofile=p.rel))})
+        if args.yes:
+            p.path.write_text(new, encoding="utf-8")
+            append_log(root, f"upgraded {p.rel}: " + ", ".join(added))
+    lines = [f"{'Upgraded' if args.yes else 'Would upgrade'} {len(changes)} of {len(sel)} profile(s)"]
+    stale = person_template_gaps(root)
+    if stale:
+        lines.append(f"warning: Templates/{KINDS['person'][0]} lacks the engine's sections ({', '.join(stale)}), so "
+                     "profiles cannot get them. Copy it from " + str(SCAFFOLD / "system" / "Templates" / KINDS["person"][0])
+                     + " (keep your own changes), then run this again.")
+    for c in changes:
+        lines.append(f"  {c['path']}: " + ", ".join(c["added"]))
+        if not args.yes:
+            lines.append(c["diff"].rstrip())
+    if changes and not args.yes:
+        lines.append("Dry run: nothing was written. Re-run with --yes, then brain refresh.")
+    elif changes:
+        lines.append("Next: brain refresh (fills the Works on blocks).")
+    emit(args, {"changes": changes, "written": args.yes, "template_gaps": stale}, "\n".join(lines))
 
 
 def cmd_new(args):
@@ -3196,6 +4187,8 @@ def cmd_promote(args):
         removed.append("links to personal notes, kept as plain text: " + ", ".join(sorted(set(r["personal_links"]))))
     if r["fields"]:
         removed.append("personal-only fields: " + ", ".join(r["fields"]))
+    if r["stakeholder"]:
+        removed.append("stakeholder sections, which stay in Personal/Stakeholders: " + ", ".join(r["stakeholder"]))
     lines = [f"{'Published' if res['created'] else 'Would publish'} {res['source']} -> {res['path']} "
              f"({res['kind']}, {res['layer']} layer)",
              "Removed:" + ("" if removed else " nothing")] + [f"  - {x}" for x in removed]
@@ -3258,6 +4251,35 @@ def refresh(root: Path, quiet=False) -> dict:
     report[org.relative_to(root).as_posix()] = write_auto_block(
         org, "org-chart", render_org_chart(notes),
         generated_header("org-chart", "Org Chart", "company", "This note is the generated org chart built from people profiles (manager and team fields)."))
+    # who works on what: one generated block per profile, and the map on the Organization hub
+    model = work_items(notes, period)
+    for p in profiles(notes):
+        text = p.text.lstrip("﻿").replace("\r\n", "\n")
+        new = place_works_on(text, render_works_on(model[p.name.lower()]))
+        if new != text:
+            p.path.write_text(new, encoding="utf-8")
+            report[p.rel] = "updated"
+    hub = root / "Company" / "Org" / "Organization.md"
+    start = AUTO_START.format(key=WORK_MAP_KEY)
+    if hub.exists() and start not in hub.read_text(encoding="utf-8"):
+        hub.write_text(hub.read_text(encoding="utf-8").rstrip() + f"\n\n## Who works on what\n{start}\n"
+                       + AUTO_END.format(key=WORK_MAP_KEY) + "\n", encoding="utf-8")
+    report[hub.relative_to(root).as_posix()] = write_auto_block(
+        hub, WORK_MAP_KEY, render_work_map(notes, model),
+        generated_header("hub", "Organization", "company", "This is the organization hub: who works on what, from people profiles and project notes."))
+    report[PEOPLE_DIRECTORY] = write_auto_block(
+        root / PEOPLE_DIRECTORY, "people-directory", render_people_directory(notes, who["company"]),
+        generated_header("people-directory", "People Directory", "company",
+                         "This note is the generated directory of everyone the company works with, grouped by "
+                         "organisation: our people from Company/Org/People, then each customer, partner and vendor "
+                         "from Company/Org/Companies with its contacts from Company/Org/Contacts. Business facts only."))
+    cards, orgs = contacts(notes), companies(notes)
+    members, _ = org_members(cards, orgs)
+    for o in orgs:
+        status = write_auto_block(o.path, "org-people", render_org_people(o, members.get(o.name, [])), "")
+        if status != "unchanged":
+            report[o.rel] = status
+    report[PEOPLE_BASE] = write_people_base(root, who["company"])
     (root / "index.md").write_text(render_index(root, scan(root)), encoding="utf-8")
     report["index.md"] = "rebuilt"
     return report
@@ -3604,7 +4626,34 @@ def main(argv=None):
     p.add_argument("--role")
     p.add_argument("--team")
     p.add_argument("--manager")
+    p.add_argument("--email", help="work email; used to match the person in connected systems")
+    p.add_argument("--alias", action="append", help="another name the person goes by (repeatable)")
+    p.add_argument("--handle", action="append", help="system:id in a connected system, e.g. github:jdoe (repeatable)")
+    p.add_argument("--company", help="their organisation when it is not ours: creates a contact card in "
+                                     "Company/Org/Contacts (and a stub org page if there is none)")
+    p.add_argument("--owner", help="with --company: who on our side owns the relationship")
+    p.add_argument("--kind", choices=ORG_KINDS, help="with --company: the kind of a new org page")
     p.set_defaults(fn=cmd_person_add)
+    p = person.add_parser("works-on", help="record that a person works on a project (from a connected system "
+                                           "or the user); refused below the brain's confidence threshold")
+    p.add_argument("person", help="full name, alias, work email, or system:id handle")
+    p.add_argument("--project", required=True, help="project note name, alias or ref; else the name the source uses")
+    p.add_argument("--role", choices=WORK_ROLES, help="required unless --ended")
+    p.add_argument("--source", required=True, help="system and record that shows it, with a URL where there is one")
+    p.add_argument("--confidence", required=True, choices=sorted(CONFIDENCE_RANK, key=CONFIDENCE_RANK.get))
+    p.add_argument("--since", help="YYYY-MM-DD the work started, when the source says")
+    p.add_argument("--until", help="YYYY-MM-DD it ended (with --ended; default today)")
+    p.add_argument("--ended", action="store_true", help="close the open entry for this project")
+    p.add_argument("--replace", action="store_true", help="the role changed to a weaker one (lead to contributor): "
+                                                          "close the open entry and record this role")
+    p.add_argument("--create", action="store_true", help="create the profile (role, team, manager TBD) if none matches")
+    p.add_argument("--dry-run", action="store_true", help="show the change, write nothing")
+    p.set_defaults(fn=cmd_person_works_on)
+    p = person.add_parser("upgrade", help="add the profile template's new fields and sections to existing "
+                                          "profiles (dry run unless --yes)")
+    p.add_argument("person", nargs="?", help="one profile (default: all)")
+    p.add_argument("--yes", action="store_true", help="write the changes")
+    p.set_defaults(fn=cmd_person_upgrade)
 
     p = sub.add_parser("new", help="create a note from a template in the right folder with the right name")
     p.add_argument("kind", choices=sorted(KINDS))
