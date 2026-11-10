@@ -4,7 +4,7 @@ An AI operating system for a company that lives in one folder. You browse and ed
 
 It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian-second-brain), a single-person AI second brain, and extends it for multiplayer use. It also adds strategy and product frameworks: Value Proposition Canvas, Opportunity Solution Tree, Effort-Impact Matrix with RICE, OKRs, Strategy Kernel, Playing to Win, Business Model Canvas and Now-Next-Later roadmaps.
 
-<img src="System/company-brain-overview.png" alt="Company Brain overview. One Obsidian vault holds three layers: company, team and personal. Links only point up. Claude operates the vault with skills, a CLI, an MCP server and guard hooks, and you browse and edit it in Obsidian." width="100%">
+<img src="System/company-brain-overview.png" alt="Who sees what in Company Brain. One Obsidian vault of plain markdown holds three floors: the company floor (mission and values, strategy, company goals, roadmap, decisions) and the team floor (team goals, projects, meeting notes, weekly updates) live in a shared folder that everyone reads, and so does their AI; your desk (daily, weekly and 1:1 notes, private goals, drafts) stays on your laptop, and your work moves up only with your yes. On the left, your tools (Slack, calendar, email, Jira, meeting notes, Drive and Desktop files) are read as data and land on your desk. On the right, you browse and edit in Obsidian, and Claude, with its skills, CLI, MCP server and hooks, reads and writes every floor. A built-in check flags any shared note that points to a private one." width="100%">
 
 > **Open this folder as an Obsidian vault.** It is plain markdown: wikilinks, graph view, Dataview hubs and kanban boards work out of the box. See Quick start.
 
@@ -23,6 +23,12 @@ It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian
 | Projects, meetings, decisions | `*/Projects/`, `*/Meetings/`, `*/Decisions/` | in the layer they belong to |
 | Weekly operating rhythm | `Personal/Daily/`, `Personal/Weekly/`, `Teams/<T>/Weekly/` | daily and weekly notes that pull from calendar, Slack, email, Jira, Drive and meeting notes; per-person team updates; team roll-ups |
 | Index and graph | `Home.md`, hubs, `index.md` | every note links to what it serves, so the Obsidian graph reads as one network, colour-coded by layer |
+
+## The tools
+
+Around the notes sit the tools that run them: 32 Claude skills, five hooks that check every session and every write, the `brain` CLI, an MCP server for Claude Desktop chat, the views `brain refresh` builds from the notes, the framework notes Claude drafts with you, and the Obsidian vault with its templates, framework guides and community plugins.
+
+<img src="System/company-brain-tools.png" alt="The tools inside Company Brain. Claude skills, 32, grouped as operating rhythm, goals and planning, discovery, people and work, capture and find, share and maintain. Hooks, 5: session_context at session start, vendored_guard before a write, layer_guard, freshness_guard and validate-ai-first after a write. The brain CLI, which works without Claude. An MCP server with 14 tools for Claude Desktop chat. Generated views: OKR trees, opportunity solution trees and canvases, effort-impact matrix, org chart, People Directory and who works on what, and the index. How the framework notes work: each framework has a template and a skill; Claude drafts the note with you, and brain refresh turns the structured ones into views. OKRs (okr) become OKR trees, the Opportunity Solution Tree (ost) becomes trees and canvases, Effort-Impact with RICE (prioritize) becomes the matrix, the Now-Next-Later roadmap (roadmap) is a board kept in sync with projects, the Value Proposition Canvas (vpc) is a note per segment whose assumptions become experiments, and the Strategy Kernel, Playing to Win and Business Model Canvas (strategy) are strategy notes that change only with your yes once approved. The Obsidian vault: 24 templates, 8 framework guides, 4 community plugins. Where you use it: Claude Code, the desktop app and Cowork through the plugin; Claude Desktop chat through the MCP server; a claude.ai Project as a read-only pack; Obsidian by hand." width="100%">
 
 ## How Claude accesses it
 
