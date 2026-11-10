@@ -24,6 +24,12 @@ It's built on [obsidian-second-brain](https://github.com/eugeniughelbur/obsidian
 | Weekly operating rhythm | `Personal/Daily/`, `Personal/Weekly/`, `Teams/<T>/Weekly/` | daily and weekly notes that pull from calendar, Slack, email, Jira, Drive and meeting notes; per-person team updates; team roll-ups |
 | Index and graph | `Home.md`, hubs, `index.md` | every note links to what it serves, so the Obsidian graph reads as one network, colour-coded by layer |
 
+## The tools
+
+Around the notes sit the tools that run them: 32 Claude skills, five hooks that check every session and every write, the `brain` CLI, an MCP server for Claude Desktop chat, the views `brain refresh` builds from the notes, and the Obsidian vault with its templates, framework guides and community plugins.
+
+<img src="System/company-brain-tools.png" alt="The tools inside Company Brain. Claude skills, 32, grouped as operating rhythm, goals and planning, discovery, people and work, capture and find, share and maintain. Hooks, 5: session_context at session start, vendored_guard before a write, layer_guard, freshness_guard and validate-ai-first after a write. The brain CLI, which works without Claude. An MCP server with 14 tools for Claude Desktop chat. Generated views: OKR trees, opportunity solution trees and canvases, effort-impact matrix, org chart and People Directory. The Obsidian vault: 24 templates, 8 framework guides, 4 community plugins. Where you use it: Claude Code, the desktop app and Cowork through the plugin; Claude Desktop chat through the MCP server; a claude.ai Project as a read-only pack; Obsidian by hand." width="100%">
+
 ## How Claude accesses it
 
 | Surface | Read | Write | Notes |
