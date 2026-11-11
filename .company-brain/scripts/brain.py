@@ -1615,7 +1615,42 @@ def find_note(root: Path, notes, ref: str) -> Note:
     raise SystemExit(f"error: {ref!r} is ambiguous: " + ", ".join(n.rel for n in hits) + " (pass the path)")
 
 
-def _team_update_from_weekly(root: Path, src: Note, team: str, who: dict, name: str | None):
+def _personal_link(value, idx: dict):
+    """(is it personal, the notes it resolves to) for a link or a plain note name, decided the way
+    unlink_personal decides."""
+    if not isinstance(value, str) or not value.strip():
+        return False, []
+    m = LINK_RE.search(value)
+    target = (m.group(2) if m else value).strip()
+    hits = idx.get(target.split("/")[-1].lower(), [])
+    return target.startswith("Personal/") or (bool(hits) and all(h.folder_layer == "personal" for h in hits)), hits
+
+
+def shared_krs(krs, notes):
+    """Map a weekly note's `krs:` to shared key results for its team update. A key result of a personal
+    goal is replaced by the one its goal ladders up to (`parent:`, followed until it leaves Personal/), so
+    the update says which shared key result the work moved without naming the personal goal; a goal with
+    no shared parent is dropped. Returns (shared krs deduplicated in order, personal goals that were
+    replaced or dropped)."""
+    idx = name_index(notes)
+    out, personal = [], []
+    for kr in as_list(krs):
+        cur, seen = kr, set()
+        while True:
+            is_personal, hits = _personal_link(cur, idx)
+            if not is_personal:
+                if isinstance(cur, str) and cur.strip() and cur not in out:
+                    out.append(cur)
+                break
+            personal.append(link_target(cur))
+            if not hits or hits[0].rel in seen:
+                break
+            seen.add(hits[0].rel)
+            cur = next(iter(as_list(hits[0].get("parent"))), None)
+    return out, list(dict.fromkeys(personal))
+
+
+def _team_update_from_weekly(root: Path, src: Note, team: str, who: dict, name: str | None, notes):
     lines = src.body.split("\n")
     span = _section_span(lines, r"Team update\b.*")
     if not span:
@@ -1638,16 +1673,22 @@ def _team_update_from_weekly(root: Path, src: Note, team: str, who: dict, name: 
     me = who.get("me")
     if not me or me == "TBD":
         raise SystemExit("error: Personal/Me.md has no person; set it first (brain init --me \"Full Name\") so the update has an author")
+    krs, personal_krs = shared_krs(src.get("krs"), notes)
     res = create_note(root, "team-update", "", layer="team", team=team, name=name, write=False,
-                      values={"author": f"[[{me}]]", "week": str(src.get("week") or src.name),
-                              "krs": as_list(src.get("krs"))})
+                      values={"author": f"[[{me}]]", "week": str(src.get("week") or src.name), "krs": krs})
     if "text" not in res:
-        return res, []
+        return res, [], []
     text = res["text"]
+    # Keep the weekly's own tags (a project or test-data tag), except the ones that describe the weekly.
+    base = as_list(split_frontmatter(text)[0].get("tags"))
+    extra = [t for t in as_list(src.get("tags")) if isinstance(t, str) and t not in ("weekly", "private")]
+    tags = list(dict.fromkeys(base + extra))
+    if tags != base:
+        text = set_frontmatter(text, {"tags": tags})
     for title, content in sections.items():
         text = replace_section(text, title, content)
     dropped = [t for i, lvl, t in _headings(lines) if lvl == 2 and i != span[0] and t.lower() != "private"]
-    return dict(res, text=text), dropped
+    return dict(res, text=text), dropped, personal_krs
 
 
 def promote(root: Path, ref: str, to: str, team: str | None = None, kind: str | None = None,
@@ -1683,10 +1724,11 @@ def promote(root: Path, ref: str, to: str, team: str | None = None, kind: str | 
     else:
         team = None
     src_text = src.text.lstrip("\ufeff").replace("\r\n", "\n")
-    removed = {"private_sections": 0, "sections": [], "personal_links": [], "fields": [], "stakeholder": []}
+    removed = {"private_sections": 0, "sections": [], "personal_links": [], "fields": [], "stakeholder": [],
+               "personal_krs": []}
 
     if kind == "team-update" and ntype == "weekly":
-        res, removed["sections"] = _team_update_from_weekly(root, src, team, who, name)
+        res, removed["sections"], removed["personal_krs"] = _team_update_from_weekly(root, src, team, who, name, notes)
         if "text" not in res:
             return res
         rel, text = res["path"], res["text"]
@@ -4183,6 +4225,9 @@ def cmd_promote(args):
         removed.append(f"{r['private_sections']} `Private` section(s)")
     if r["sections"]:
         removed.append("weekly sections that are not part of the team update: " + ", ".join(r["sections"]))
+    if r.get("personal_krs"):
+        removed.append("personal goals in krs, replaced by the shared key results they ladder up to (or dropped "
+                       "when they have none): " + ", ".join(r["personal_krs"]))
     if r["personal_links"]:
         removed.append("links to personal notes, kept as plain text: " + ", ".join(sorted(set(r["personal_links"]))))
     if r["fields"]:

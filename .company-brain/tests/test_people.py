@@ -480,3 +480,41 @@ def test_reconfirming_fills_a_missing_start_date(brain):
 def test_profile_queries_match_unresolved_links_too():
     for name in ("Person Template.md", "Project Template.md"):
         assert '"[[" + this.file.name + "]]"' in (BRAIN / "Templates" / name).read_text(encoding="utf-8"), name
+
+
+def test_team_update_maps_personal_goal_krs_to_shared_krs_and_keeps_tags(brain):
+    """A weekly's `krs:` often lists my personal goals. Their titles must not reach the shared team update:
+    each is replaced by the shared key result its goal ladders up to, or dropped when it has none. The
+    weekly's own tags (other than `weekly` and `private`) carry over."""
+    company = "2026-Q4 - Company - O1 - Grow faster"
+    g1, g2 = "2026-Q4 - Ana - G1 - Secret career goal", "2026-Q4 - Ana - G2 - Read more"
+
+    def objective(path: Path, layer: str, parent: str = "") -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"---\ndate: {TODAY}\ntype: objective\ntags: [objective, okr]\nai-first: true\nlayer: {layer}\n"
+                        f"level: {layer}\nperiod: 2026-Q4\nowner: \"[[Ana Lopez]]\"\nparent: \"{parent}\"\nstatus: on-track\n---\n\n"
+                        f"# {path.stem}\n\n## For future agent\nAn objective.\n\n## Key results\n"
+                        "- **KR1** One [progress:: 0] ^kr1\n- **KR2** Two [progress:: 0] ^kr2\n- **KR3** Three [progress:: 0] ^kr3\n",
+                        encoding="utf-8")
+
+    objective(brain / "Company" / "OKRs" / f"{company}.md", "company")
+    objective(brain / "Personal" / "Goals" / f"{g1}.md", "personal", f"[[{company}#^kr2]]")
+    objective(brain / "Personal" / "Goals" / f"{g2}.md", "personal")
+    weekly = brain / "Personal" / "Weekly" / "2026-W46.md"
+    weekly.parent.mkdir(parents=True, exist_ok=True)
+    krs = ", ".join(f'"[[{n}]]"' for n in (f"{g1}#^kr1", f"{g1}#^kr3", f"{g2}#^kr1", f"{company}#^kr3", f"{company}#^kr2"))
+    weekly.write_text(f"---\ndate: {TODAY}\ntype: weekly\ntags: [weekly, synthetic]\nai-first: true\nlayer: personal\n"
+                      f"week: 2026-W46\nkrs: [{krs}]\n---\n\n# 2026-W46\n\n## For future agent\nMy week.\n\n"
+                      "## Team update (draft, not shared until published)\n- Highlights: Shipped the beta\n"
+                      "- KR progress: 6 of 15\n- Next week: TBD\n- Help needed: TBD\n\n## Private\n- Career plans\n",
+                      encoding="utf-8")
+
+    dry = ok(brain, "promote", "Personal/Weekly/2026-W46.md", "--to", "team", "--team", "Platform")
+    assert f"personal goals in krs, replaced by the shared key results they ladder up to (or dropped when they have none): {g1}, {g2}" in dry
+    ok(brain, "promote", "Personal/Weekly/2026-W46.md", "--to", "team", "--team", "Platform", "--yes")
+    published = brain / "Teams" / "Platform" / "Weekly" / "2026-W46 - Platform - Ana Lopez.md"
+    text = published.read_text(encoding="utf-8")
+    assert fm(published)["krs"] == [f"[[{company}#^kr2]]", f"[[{company}#^kr3]]"]
+    assert "Secret career goal" not in text and "Read more" not in text and "Career plans" not in text
+    tags = fm(published)["tags"]
+    assert "synthetic" in tags and "team-update" in tags and tags.count("weekly") == 1
