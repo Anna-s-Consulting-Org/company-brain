@@ -1941,8 +1941,8 @@ def render_okr_tree(objs: dict, period: str, include_personal: bool = False) -> 
             edges.append(f"  {ids[o['parent'].lower()]} --> {ids[o['name'].lower()]}")
     if nodes:
         lines += ["", "### Cascade", "", "```mermaid", "flowchart LR"] + nodes + edges + [
-            "  classDef company fill:#dbeafe,stroke:#1d4ed8", "  classDef team fill:#dcfce7,stroke:#15803d",
-            "  classDef personal fill:#ffedd5,stroke:#c2410c", "```"]
+            "  classDef company fill:#dbeafe,stroke:#1d4ed8,color:#111827", "  classDef team fill:#dcfce7,stroke:#15803d,color:#111827",
+            "  classDef personal fill:#ffedd5,stroke:#c2410c,color:#111827", "```"]
     return "\n".join(lines)
 
 
@@ -1990,8 +1990,8 @@ def ost_mermaid(tree: dict) -> str:
         for c in t["children"]:
             walk(c, nid)
     walk(tree)
-    out += ["  classDef outcome fill:#ede9fe,stroke:#6d28d9", "  classDef opportunity fill:#cffafe,stroke:#0e7490",
-            "  classDef solution fill:#dcfce7,stroke:#15803d", "  classDef experiment fill:#fef9c3,stroke:#a16207", "```"]
+    out += ["  classDef outcome fill:#ede9fe,stroke:#6d28d9,color:#111827", "  classDef opportunity fill:#cffafe,stroke:#0e7490,color:#111827",
+            "  classDef solution fill:#dcfce7,stroke:#15803d,color:#111827", "  classDef experiment fill:#fef9c3,stroke:#a16207,color:#111827", "```"]
     return "\n".join(out)
 
 
